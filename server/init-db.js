@@ -1,10 +1,26 @@
 const mysql = require('mysql2/promise');
+const path = require('path');
+const fs = require('fs');
+
+// Load .env
+const envPath = path.join(__dirname, '..', '.env');
+if (fs.existsSync(envPath)) {
+  for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const val = trimmed.slice(eqIdx + 1).trim();
+    if (!process.env[key]) process.env[key] = val;
+  }
+}
 
 async function initDatabase() {
   const conn = await mysql.createConnection({
-    host: 'localhost',
-    user: 'libereica',
-    password: 'L1ber1ca'
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || ''
   });
 
   await conn.query(`CREATE DATABASE IF NOT EXISTS movie_archive DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);

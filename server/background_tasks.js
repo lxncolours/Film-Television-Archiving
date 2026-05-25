@@ -1,20 +1,11 @@
-const mysql = require('mysql2/promise');
 const axios = require('axios');
 const https = require('https');
 const tmdb = require('./tmdb');
-const doubanScraper = require('./douban_scraper');
+const dbPool = require('./db');
 
 const CONFIG = {
-  intervalMs: 30000, // 每半分钟执行一次
+  intervalMs: 30000,
   proxy: { host: '127.0.0.1', port: 6789 },
-  dbConfig: {
-    host: 'localhost',
-    user: 'libereica',
-    password: 'L1ber1ca',
-    database: 'movie_archive',
-    waitForConnections: true,
-    connectionLimit: 5,
-  },
 };
 
 const AGENT = new https.Agent({ rejectUnauthorized: false });
@@ -24,7 +15,6 @@ const proxyAxios = axios.create({
   timeout: 15000,
 });
 
-let pool = null;
 let taskRunning = false;
 let taskInterval = null;
 let stats = { processed: 0, success: 0, failed: 0, lastRun: null };
@@ -33,20 +23,10 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function getPool() {
-  if (!pool) {
-    pool = mysql.createPool(CONFIG.dbConfig);
-  }
-  return pool;
-}
-
 async function fetchOnePoster() {
-  const pool = await getPool();
-
-  // 1. 获取一部需要海报的电影（优先选有豆瓣ID的，跳过已标记的和已有海报URL的）
-    const [rows] = await pool.query(
-      "SELECT id, title, altTitle, doubanUrl, type FROM movies WHERE (poster_data IS NULL OR poster_data = '') AND (poster IS NULL OR poster = '' OR poster = '_not_found_') ORDER BY doubanUrl DESC, id ASC LIMIT 1"
-    );
+  const [rows] = await dbPool.query(
+    "SELECT id, title, altTitle, tmdbUrl, type FROM movies WHERE (poster_data IS NULL OR poster_data = '') AND (poster IS NULL OR poster = '' OR poster = '_not_found_') ORDER BY tmdbUrl DESC, id ASC LIMIT 1"
+  );
 
   if (rows.length === 0) {
     console.log('[Background] 没有需要获取海报的电影');
@@ -59,36 +39,17 @@ async function fetchOnePoster() {
   let posterUrl = null;
 
   try {
-    // 2. 提取豆瓣ID
-    let doubanId = null;
-    if (movie.doubanUrl) {
-      const m = movie.doubanUrl.match(/subject\/(\d+)/);
-      if (m) doubanId = m[1];
-    }
-
-    // 3. 尝试 TMDB
     if (!posterUrl && tmdb.isConfigured()) {
       try {
-        posterUrl = await tmdb.findPosterByTitle(movie.title, movie.altTitle, movie.doubanUrl, movie.type);
+        posterUrl = await tmdb.findPosterByTitle(movie.title, movie.altTitle, movie.tmdbUrl, movie.type);
         if (posterUrl) console.log(`  ✅ TMDB 找到海报`);
       } catch (e) {
         console.log(`  ⚠️ TMDB 失败: ${e.message}`);
       }
     }
 
-    // 4. 尝试豆瓣网页抓取
-    if (!posterUrl && doubanId) {
-      try {
-        posterUrl = await doubanScraper.scrapePoster(doubanId);
-        if (posterUrl) console.log(`  ✅ 豆瓣抓取成功`);
-      } catch (e) {
-        console.log(`  ⚠️ 豆瓣抓取失败: ${e.message}`);
-      }
-    }
-
-    // 5. 如果所有方式都失败，标记为已尝试过，避免重复处理
     if (!posterUrl) {
-      await pool.query("UPDATE movies SET poster = '_not_found_' WHERE id = ?", [movie.id]);
+      await dbPool.query("UPDATE movies SET poster = '_not_found_' WHERE id = ?", [movie.id]);
       console.log(`  ❌ ${movie.title} 未找到海报，已标记跳过`);
       stats.failed++;
       stats.processed++;
@@ -96,7 +57,6 @@ async function fetchOnePoster() {
       return true;
     }
 
-    // 6. 下载并保存海报
     let imageData = null;
     let imageMime = '';
     try {
@@ -114,13 +74,13 @@ async function fetchOnePoster() {
     }
 
     if (imageData) {
-      await pool.query(
+      await dbPool.query(
         'UPDATE movies SET poster = ?, poster_data = ?, poster_mime = ? WHERE id = ?',
         [posterUrl, imageData, imageMime, movie.id]
       );
       console.log(`  ✅ ${movie.title} 海报已保存（含图片）`);
     } else {
-      await pool.query('UPDATE movies SET poster = ? WHERE id = ?', [posterUrl, movie.id]);
+      await dbPool.query('UPDATE movies SET poster = ? WHERE id = ?', [posterUrl, movie.id]);
       console.log(`  ✅ ${movie.title} 海报URL已保存`);
     }
 

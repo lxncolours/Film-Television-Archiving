@@ -2,12 +2,26 @@ const mysql = require('mysql2/promise');
 const fs = require('fs');
 const path = require('path');
 
+// Load .env
+const envPath = path.join(__dirname, '..', '.env');
+if (fs.existsSync(envPath)) {
+  for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const val = trimmed.slice(eqIdx + 1).trim();
+    if (!process.env[key]) process.env[key] = val;
+  }
+}
+
 async function migrateCSV() {
   const conn = await mysql.createConnection({
-    host: 'localhost',
-    user: 'libereica',
-    password: 'L1ber1ca',
-    database: 'movie_archive'
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'movie_archive'
   });
 
   const [existing] = await conn.query('SELECT COUNT(*) as count FROM movies');
