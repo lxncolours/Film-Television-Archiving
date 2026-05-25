@@ -3,7 +3,6 @@ const router = express.Router();
 const pool = require('../db');
 const axios = require('axios');
 const https = require('https');
-const crypto = require('crypto');
 const cache = require('../redis');
 
 const PROXY = { host: '127.0.0.1', port: 6789 };
@@ -14,32 +13,6 @@ const proxyAxios = axios.create({
   httpsAgent: AGENT,
   timeout: 15000,
 });
-
-const API_KEY = '0dad551ec0f84ed02907ff5c42e8ec70';
-const API_SECRET = 'bf7dddc7c9cfe6f7';
-const UAS = [
-  'api-client/1 com.douban.frodo/7.22.0.beta9(231) Android/23 product/Mate 40 vendor/HUAWEI model/Mate 40 brand/HUAWEI rom/android network/wifi platform/AndroidPad',
-  'api-client/1 com.douban.frodo/7.18.0(230) Android/22 product/MI 9 vendor/Xiaomi model/MI 9 brand/Android rom/miui6 network/wifi platform/mobile nd/1',
-];
-
-function makeSig(path, ts) {
-  return crypto.createHmac('sha1', API_SECRET)
-    .update('GET&' + encodeURIComponent(path) + '&' + ts)
-    .digest('base64');
-}
-
-function randomUA() {
-  return UAS[Math.floor(Math.random() * UAS.length)];
-}
-
-function parseRow(row) {
-  const { poster_data, poster_mime, ...rest } = row;
-  return {
-    ...rest,
-    has_poster_data: !!poster_data,
-    tags: typeof row.tags === 'string' ? JSON.parse(row.tags) : (row.tags || [])
-  };
-}
 
 function parseArrayParam(param) {
   if (!param) return [];
@@ -80,11 +53,11 @@ router.get('/', async (req, res) => {
     const countParams = [];
 
     if (search) {
-      sql += ' AND (title LIKE ? OR altTitle LIKE ? OR JSON_SEARCH(tags, \'one\', ?) IS NOT NULL)';
-      countSql += ' AND (title LIKE ? OR altTitle LIKE ? OR JSON_SEARCH(tags, \'one\', ?) IS NOT NULL)';
+      sql += ' AND (title LIKE ? OR altTitle LIKE ?)';
+      countSql += ' AND (title LIKE ? OR altTitle LIKE ?)';
       const like = `%${search}%`;
-      params.push(like, like, `%${search}%`);
-      countParams.push(like, like, `%${search}%`);
+      params.push(like, like);
+      countParams.push(like, like);
     }
     if (typeList.length > 0) {
       sql += ' AND type IN (?)';

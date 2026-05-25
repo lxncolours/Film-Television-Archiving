@@ -277,69 +277,6 @@ async function findPosterByTitle(title, altTitle, doubanUrl, mediaType) {
   return await findPoster(title, altTitle, mediaType);
 }
 
-async function fetchDetailsByTitle(title, type) {
-  const key = getApiKey();
-  if (!key) return null;
-
-  const parsed = parseSeasonInfo(title);
-  const q = (parsed.season > 0 && parsed.base) ? parsed.base : title;
-
-  const results = await searchMulti(q);
-  if (results.length === 0) return null;
-
-  const targetType = (type === '剧集' || type === '纪录片') ? 'tv' : 'movie';
-  let bestMatch = null;
-
-  for (const r of results) {
-    if (r.media_type !== 'movie' && r.media_type !== 'tv') continue;
-    if (targetType === 'tv' && r.media_type === 'movie') continue;
-    if (targetType === 'movie' && r.media_type === 'tv') continue;
-    const names = [r.title, r.name, r.original_title, r.original_name].filter(Boolean);
-    if (names.some(n => n === q || n === title)) { bestMatch = r; break; }
-    if (!bestMatch) bestMatch = r;
-  }
-
-  if (!bestMatch) return null;
-
-  let detail;
-  let posterPath = bestMatch.poster_path;
-  let seasonYear = null;
-  
-  if (bestMatch.media_type === 'movie' || targetType === 'movie') {
-    detail = await getMovieDetails(bestMatch.id);
-  } else {
-    detail = await getTvDetails(bestMatch.id);
-    
-    // If this is a TV series with a season number, try to get the season-specific poster and year
-    if (parsed.season > 0) {
-      try {
-        const seasonData = await getSeasonDetails(bestMatch.id, parsed.season);
-        if (seasonData) {
-          if (seasonData.poster_path) posterPath = seasonData.poster_path;
-          if (seasonData.air_date) seasonYear = parseInt(seasonData.air_date.slice(0, 4));
-        }
-      } catch { /* fallback */ }
-    }
-  }
-  if (!detail) detail = bestMatch;
-
-  const posterUrl = posterPath ? getPosterUrl(posterPath, 'original') : '';
-  const year = seasonYear || (detail.release_date ? parseInt(detail.release_date.slice(0, 4)) : (detail.first_air_date ? parseInt(detail.first_air_date.slice(0, 4)) : 0));
-  const countries = detail.production_countries ? detail.production_countries.map(c => c.name).join(' / ') : (detail.origin_country ? detail.origin_country.join(' / ') : '');
-  const genres = detail.genres ? detail.genres.map(g => g.name) : [];
-  const title_zh = detail.title || detail.name || '';
-  const title_en = detail.original_title || detail.original_name || '';
-
-  return {
-    title: title_zh,
-    altTitle: (title_en !== title_zh) ? title_en : '',
-    year: isNaN(year) ? 0 : year,
-    countries,
-    genres,
-    poster: posterUrl,
-    overview: detail.overview || '',
-  };
-}
 
 module.exports = {
   isConfigured,
@@ -348,6 +285,5 @@ module.exports = {
   searchMulti,
   findPoster,
   findPosterByTitle,
-  fetchDetailsByTitle,
   getPosterUrl,
 };

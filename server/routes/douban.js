@@ -90,7 +90,7 @@ router.get('/detail/:id', async (req, res) => {
           directors: '',
           rating: movie.rating,
           poster: movie.poster,
-          doubanUrl: movie.doubanUrl,
+          tmdbUrl: movie.tmdbUrl,
           source: 'local',
         },
       });
