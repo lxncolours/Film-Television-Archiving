@@ -2,15 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const https = require('https');
-const movieRoutes = require('./routes/movies');
-const doubanRoutes = require('./routes/douban');
-const tmdbRoutes = require('./routes/tmdb');
-const os = require('os');
-const axios = require('axios');
-const backgroundTasks = require('./background_tasks');
 
-// Load .env file
+// Load .env file BEFORE any local modules that depend on it
 const envPath = path.join(__dirname, '..', '.env');
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf8');
@@ -26,6 +19,14 @@ if (fs.existsSync(envPath)) {
     }
   }
 }
+
+const https = require('https');
+const movieRoutes = require('./routes/movies');
+const doubanRoutes = require('./routes/douban');
+const tmdbRoutes = require('./routes/tmdb');
+const os = require('os');
+const axios = require('axios');
+const backgroundTasks = require('./background_tasks');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
