@@ -273,7 +273,7 @@ async function findPoster(title, altTitle, type) {
   return getPosterUrl(posterPath);
 }
 
-async function findPosterByTitle(title, altTitle, doubanUrl, mediaType) {
+async function findPosterByTitle(title, altTitle, tmdbUrl, mediaType) {
   return await findPoster(title, altTitle, mediaType);
 }
 
@@ -286,4 +286,7 @@ module.exports = {
   findPoster,
   findPosterByTitle,
   getPosterUrl,
+  getMovieDetails,
+  getTvDetails,
+  parseSeasonInfo,
 };

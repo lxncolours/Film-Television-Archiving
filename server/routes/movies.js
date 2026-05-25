@@ -334,7 +334,6 @@ router.post('/fetch-poster/:id', async (req, res) => {
     const movie = rows[0];
     if (movie.poster_data) return res.json({ success: true, message: '已有海报' });
 
-    // Use TMDB directly
     let posterUrl = null;
     try {
       const tmdb = require('../tmdb');
@@ -343,22 +342,6 @@ router.post('/fetch-poster/:id', async (req, res) => {
       }
     } catch (e) {
       console.log('TMDB获取海报失败:', movie.title, e.message);
-    }
-
-    // Fallback to Douban web scrape if TMDB fails
-    if (!posterUrl) {
-      let doubanId = null;
-      if (movie.tmdbUrl) {
-        // Try to extract douban ID from tmdbUrl (backward compatibility)
-      }
-      if (doubanId) {
-        try {
-          const doubanScraper = require('../douban_scraper');
-          posterUrl = await doubanScraper.scrapePoster(doubanId);
-        } catch (e) {
-          console.log('豆瓣网页抓取失败:', movie.title, e.message);
-        }
-      }
     }
 
     if (posterUrl) {
@@ -395,23 +378,16 @@ router.get('/poster/:id/image', async (req, res) => {
   }
 });
 
-const axiosTmdb = axios.create({
-  proxy: PROXY,
-  httpsAgent: AGENT,
-  timeout: 15000,
-});
-
 async function fetchFromTmdb(title) {
   const tmdb = require('../tmdb');
   const key = tmdb.getApiKey();
   if (!key) return null;
 
-  const seasonMatch = title.match(/(.+?)[\s　]*第[一二三四五六七八九十\d]+季$/);
-  const searchQ = seasonMatch ? seasonMatch[1].trim() : title;
+  const si = tmdb.parseSeasonInfo(title);
+  const searchQ = (si.season > 0 && si.base) ? si.base : title;
 
   try {
-    const sr = await axiosTmdb.get(`https://api.themoviedb.org/3/search/multi?api_key=${key}&query=${encodeURIComponent(searchQ)}&language=zh-CN&page=1`);
-    const results = sr.data.results || [];
+    const results = await tmdb.searchMulti(searchQ);
     if (results.length === 0) return null;
 
     let best = results[0];
@@ -421,18 +397,17 @@ async function fetchFromTmdb(title) {
       if (names.some(n => n === searchQ)) { best = r; break; }
     }
 
+    let year = best.release_date ? parseInt(best.release_date.slice(0, 4)) : (best.first_air_date ? parseInt(best.first_air_date.slice(0, 4)) : 0);
+    let genres = [];
+
     const isTv = best.media_type === 'tv';
-    let detail;
-    try {
-      const detResp = await axiosTmdb.get(`https://api.themoviedb.org/3/${isTv ? 'tv' : 'movie'}/${best.id}?api_key=${key}&language=zh-CN`);
-      detail = detResp.data;
-    } catch { detail = best; }
+    let detail = isTv ? await tmdb.getTvDetails(best.id) : await tmdb.getMovieDetails(best.id);
+    if (detail) {
+      year = detail.release_date ? parseInt(detail.release_date.slice(0, 4)) : (detail.first_air_date ? parseInt(detail.first_air_date.slice(0, 4)) : year);
+      genres = detail.genres ? detail.genres.map(g => g.name) : [];
+    }
 
-    const d = detail || best;
-     const year = d.release_date ? parseInt(d.release_date.slice(0, 4)) : (d.first_air_date ? parseInt(d.first_air_date.slice(0, 4)) : 0);
-     const genres = d.genres ? d.genres.map(g => g.name) : [];
-
-     return { year: isNaN(year) ? 0 : year, genres };
+    return { year: isNaN(year) ? 0 : year, genres };
   } catch {
     return null;
   }

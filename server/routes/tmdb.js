@@ -4,19 +4,6 @@ const axios = require('axios');
 const https = require('https');
 const tmdb = require('../tmdb');
 
-const CN_NUM = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
-
-function parseSeason(title) {
-  if (!title) return { base: '', season: 0 };
-  let m = title.match(/(.+?)[\s　]*第([一二三四五六七八九十]+)季$/);
-  if (m) return { base: m[1].trim(), season: CN_NUM[m[2]] || 0 };
-  m = title.match(/(.+?)[\s　]*第(\d+)季$/);
-  if (m) return { base: m[1].trim(), season: parseInt(m[2]) || 0 };
-  m = title.match(/(.+?)[\s\-_]*[Ss]eason[\s\-_]*(\d+)$/);
-  if (m) return { base: m[1].trim(), season: parseInt(m[2]) || 0 };
-  return { base: '', season: 0 };
-}
-
 const COUNTRY_CN = {
   'United States': '美国',
   'United States of America': '美国',
@@ -131,7 +118,7 @@ router.post('/detail', async (req, res) => {
       return res.status(400).json({ success: false, message: 'TMDB API Key 未配置' });
     }
 
-    const si = parseSeason(title || '');
+    const si = tmdb.parseSeasonInfo(title || '');
 
     // If tmdb_id is provided, fetch directly by ID
     if (tmdb_id && media_type) {

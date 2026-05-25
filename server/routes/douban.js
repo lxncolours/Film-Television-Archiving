@@ -3,28 +3,6 @@ const router = express.Router();
 const pool = require('../db');
 const tmdb = require('../tmdb');
 
-const CN_NUM = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
-
-function parseSeason(title) {
-  if (!title) return { base: '', season: 0 };
-  
-  let m = title.match(/(.+?)[\s　]*第([一二三四五六七八九十]+)季/);
-  if (m) return { base: m[1].trim(), season: CN_NUM[m[2]] || 0 };
-  
-  m = title.match(/(.+?)[\s　]*第(\d+)季/);
-  if (m) return { base: m[1].trim(), season: parseInt(m[2]) || 0 };
-  
-  m = title.match(/(.+?)[\s\-_]*[Ss]eason[\s\-_]*(\d+)/);
-  if (m) return { base: m[1].trim(), season: parseInt(m[2]) || 0 };
-  
-  m = title.match(/(.+?)[\s\-_]*[Ss](\d+)/);
-  if (m && m[2].length <= 2) {
-    return { base: m[1].trim(), season: parseInt(m[2]) || 0 };
-  }
-  
-  return { base: '', season: 0 };
-}
-
 router.get('/search', async (req, res) => {
   try {
     const { q } = req.query;
@@ -36,7 +14,7 @@ router.get('/search', async (req, res) => {
       return res.json({ success: false, message: 'TMDB 未配置' });
     }
 
-    const si = parseSeason(q);
+    const si = tmdb.parseSeasonInfo(q);
     let searchQ = si.season > 0 && si.base ? si.base : q;
     
     console.log(`搜索查询: "${q}", 解析季数: ${si.season}, 搜索关键词: "${searchQ}"`);
