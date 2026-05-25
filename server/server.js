@@ -3,6 +3,10 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
+if (process.platform === 'win32') {
+  try { require('child_process').execSync('chcp 65001 > nul'); } catch {}
+}
+
 // Load .env file BEFORE any local modules that depend on it
 const envPath = path.join(__dirname, '..', '.env');
 if (fs.existsSync(envPath)) {
@@ -33,7 +37,6 @@ const PORT = process.env.PORT || 3000;
 const PROXY = { host: '127.0.0.1', port: 6789 };
 const AGENT = new https.Agent({ rejectUnauthorized: false });
 
-// Set proxy globally for axios (used by /api/proxy/image and other external calls)
 const proxyAxios = axios.create({
   proxy: PROXY,
   httpsAgent: AGENT,
@@ -46,7 +49,8 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ type: 'application/json' }));
+app.use(express.urlencoded({ extended: true }));
 
 // Disable cache for index.html to ensure latest code
 app.use((req, res, next) => {
@@ -57,7 +61,13 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static(path.join(__dirname, '..')));
+app.use(express.static(path.join(__dirname, '..'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.set('Content-Type', 'text/html; charset=utf-8');
+    }
+  }
+}));
 
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
