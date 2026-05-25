@@ -1,0 +1,24 @@
+{
+  "name": "project-movie",
+  "version": "1.0.0",
+  "description": "观影记录管理系统",
+  "main": "server/server.js",
+  "scripts": {
+    "init-db": "node server/init-db.js",
+    "migrate": "node server/migrate-csv.js",
+    "setup": "node server/init-db.js && node server/migrate-csv.js",
+    "start": "node server/server.js",
+    "dev": "node server/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.16.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "mysql2": "^3.14.1",
+    "redis": "^5.12.1"
+  }
+}
