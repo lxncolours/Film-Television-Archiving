@@ -1,19 +1,12 @@
-const axios = require('axios');
-const https = require('https');
 const tmdb = require('./tmdb');
 const dbPool = require('./db');
+const proxyConfig = require('./proxy-config');
 
 const CONFIG = {
   intervalMs: 30000,
-  proxy: { host: '127.0.0.1', port: 6789 },
 };
 
-const AGENT = new https.Agent({ rejectUnauthorized: false });
-const proxyAxios = axios.create({
-  proxy: CONFIG.proxy,
-  httpsAgent: AGENT,
-  timeout: 15000,
-});
+const proxyAxios = proxyConfig.createAxiosInstance();
 
 let taskRunning = false;
 let taskInterval = null;

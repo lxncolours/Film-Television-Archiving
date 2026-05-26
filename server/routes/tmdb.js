@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const tmdb = require('../tmdb');
 const logger = require('../utils/logger');
+const proxyConfig = require('../proxy-config');
 
 const COUNTRY_CN = {
   'United States': '美国',
@@ -79,6 +80,9 @@ function extractYear(seasonYear, detail) {
   if (detail.first_air_date) return parseInt(detail.first_air_date.slice(0, 4));
   return 0;
 }
+
+// Use proxy matching the system configuration (required for network access)
+const tmdbClient = proxyConfig.createAxiosInstance();
 
 function extractCountries(detail) {
   if (detail.production_countries) {

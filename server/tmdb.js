@@ -1,8 +1,7 @@
-const axios = require('axios');
-const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const logger = require('./utils/logger');
+const proxyConfig = require('./proxy-config');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'tmdb_config.json');
 const POSTER_BASE = 'https://image.tmdb.org/t/p';
@@ -64,16 +63,6 @@ function loadConfig() {
   }
   if (!config) config = {};
   if (!config.api_key) config.api_key = process.env.TMDB_API_KEY || '';
-  if (!config.proxy) {
-    try {
-      const url = require('url');
-      if (process.env.HTTPS_PROXY) config.proxy = process.env.HTTPS_PROXY;
-      else if (process.env.HTTP_PROXY) config.proxy = process.env.HTTP_PROXY;
-      else config.proxy = 'http://127.0.0.1:6789';
-    } catch {
-      config.proxy = 'http://127.0.0.1:6789';
-    }
-  }
   return config;
 }
 
@@ -90,22 +79,7 @@ function saveConfig(apiKey) {
 
 function getClient() {
   if (client) return client;
-
-  const cfg = loadConfig();
-  const options = { timeout: 15000 };
-
-  if (cfg.proxy) {
-    const parsed = new URL(cfg.proxy);
-    options.proxy = {
-      host: parsed.hostname,
-      port: parseInt(parsed.port) || 6789,
-      protocol: parsed.protocol.replace(':', ''),
-    };
-  }
-
-  options.httpsAgent = new https.Agent({ rejectUnauthorized: false });
-
-  client = axios.create(options);
+  client = proxyConfig.createAxiosInstance({ timeout: 15000 });
   return client;
 }
 

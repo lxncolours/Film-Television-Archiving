@@ -1,19 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const axios = require('axios');
 const https = require('https');
 const cache = require('../redis');
 const sortConfig = require('../config/sortConfig');
+const proxyConfig = require('../proxy-config');
 
-const PROXY = { host: '127.0.0.1', port: 6789 };
 const AGENT = new https.Agent({ rejectUnauthorized: false });
 
-const proxyAxios = axios.create({
-  proxy: PROXY,
-  httpsAgent: AGENT,
-  timeout: 15000,
-});
+const proxyAxios = proxyConfig.createAxiosInstance();
 
 function parseArrayParam(param) {
   if (!param) return [];

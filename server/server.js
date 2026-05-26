@@ -45,17 +45,13 @@ const tmdbRoutes = require('./routes/tmdb');
 const os = require('os');
 const axios = require('axios');
 const backgroundTasks = require('./background_tasks');
+const proxyConfig = require('./proxy-config');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const PROXY = { host: '127.0.0.1', port: 6789 };
 const AGENT = new https.Agent({ rejectUnauthorized: false });
 
-const proxyAxios = axios.create({
-  proxy: PROXY,
-  httpsAgent: AGENT,
-  timeout: 15000,
-});
+const proxyAxios = proxyConfig.createAxiosInstance();
 
 const corsOptions = {
   origin: true,
@@ -102,6 +98,24 @@ app.post('/api/background/start', (req, res) => {
 app.post('/api/background/stop', (req, res) => {
   backgroundTasks.stop();
   res.json({ success: true, message: '后台任务已停止' });
+});
+
+// 代理配置接口
+app.get('/api/proxy/config', (req, res) => {
+  res.json({ success: true, data: proxyConfig.getConfig() });
+});
+
+app.put('/api/proxy/config', (req, res) => {
+  const { enabled, host, port, protocol } = req.body;
+  const current = proxyConfig.getConfig();
+  const newConfig = {
+    enabled: enabled !== undefined ? enabled : current.enabled,
+    host: host !== undefined ? host : current.host,
+    port: port !== undefined ? port : current.port,
+    protocol: protocol !== undefined ? protocol : current.protocol,
+  };
+  proxyConfig.setConfig(newConfig);
+  res.json({ success: true, data: proxyConfig.getConfig(), message: '代理配置已更新' });
 });
 
 app.get('/api/proxy/image', async (req, res) => {

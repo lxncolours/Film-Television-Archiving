@@ -792,6 +792,143 @@
             .movie-grid { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
             .card-overlay .card-title { font-size: 0.8rem; }
         }
+
+        /* ===== Proxy Config Modal ===== */
+        .proxy-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .proxy-modal.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .proxy-modal-inner {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            width: 420px;
+            max-width: 90vw;
+        }
+        .proxy-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+        .proxy-modal-header h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .proxy-modal-close {
+            width: 32px; height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .proxy-modal-close:hover {
+            border-color: var(--text);
+            color: var(--text);
+        }
+        .proxy-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            margin-bottom: 1rem;
+        }
+        .proxy-form-group label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .proxy-form-group input,
+        .proxy-form-group select {
+            padding: 0.6rem 0.8rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 0.85rem;
+            outline: none;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .proxy-form-group input:focus,
+        .proxy-form-group select:focus {
+            border-color: var(--accent);
+        }
+        .proxy-form-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        .proxy-form-toggle input[type="checkbox"] {
+            width: 18px; height: 18px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+        .proxy-form-toggle label {
+            font-size: 0.85rem;
+            color: var(--text);
+            cursor: pointer;
+        }
+        .proxy-form-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+            justify-content: flex-end;
+        }
+        .proxy-form-actions button {
+            padding: 0.5rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            border: none;
+        }
+        .proxy-btn-cancel {
+            background: transparent;
+            border: 1px solid var(--border) !important;
+            color: var(--text-secondary);
+        }
+        .proxy-btn-cancel:hover {
+            border-color: var(--text) !important;
+            color: var(--text);
+        }
+        .proxy-btn-save {
+            background: var(--accent);
+            color: white;
+        }
+        .proxy-btn-save:hover {
+            background: #ff3b6f;
+            transform: translateY(-1px);
+        }
+        .proxy-form-status {
+            font-size: 0.75rem;
+            margin-top: 0.75rem;
+            text-align: center;
+            min-height: 1.2em;
+            transition: opacity 0.3s;
+        }
+        .proxy-form-status.success { color: #10b981; }
+        .proxy-form-status.error { color: var(--accent); }
     </style>
 </head>
 <body>
@@ -886,6 +1023,52 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path>
                 </svg>
                 <span id="networkUrl">获取中...</span>
+                <span style="margin:0 0.5rem;color:var(--border)">|</span>
+                <button class="top-bar-btn" id="proxyConfigBtn" title="代理设置" style="width:28px;height:28px;border-radius:50%;">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Proxy Config Modal ===== -->
+    <div class="proxy-modal" id="proxyModal">
+        <div class="proxy-modal-inner">
+            <div class="proxy-modal-header">
+                <h3>代理设置</h3>
+                <button class="proxy-modal-close" id="proxyModalClose">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="proxy-form-toggle">
+                <input type="checkbox" id="proxyEnabled">
+                <label for="proxyEnabled">启用代理</label>
+            </div>
+            <div class="proxy-form-group">
+                <label for="proxyProtocol">协议</label>
+                <select id="proxyProtocol">
+                    <option value="http">HTTP</option>
+                    <option value="https">HTTPS</option>
+                    <option value="socks5">SOCKS5</option>
+                </select>
+            </div>
+            <div class="proxy-form-group">
+                <label for="proxyHost">主机地址</label>
+                <input type="text" id="proxyHost" placeholder="例如 127.0.0.1">
+            </div>
+            <div class="proxy-form-group">
+                <label for="proxyPort">端口</label>
+                <input type="number" id="proxyPort" placeholder="例如 6789" min="1" max="65535">
+            </div>
+            <div class="proxy-form-status" id="proxyStatus"></div>
+            <div class="proxy-form-actions">
+                <button class="proxy-btn-cancel" id="proxyCancel">取消</button>
+                <button class="proxy-btn-save" id="proxySave">保存</button>
             </div>
         </div>
     </div>
@@ -1204,6 +1387,63 @@
             } catch (e) {
                 document.getElementById('networkUrl').textContent = '获取失败';
             }
+        }
+
+        // ===== Proxy Config =====
+        async function loadProxyConfig() {
+            try {
+                const d = await apiGet(`${API_BASE}/proxy/config`);
+                if (d.success && d.data) {
+                    document.getElementById('proxyEnabled').checked = d.data.enabled !== false;
+                    document.getElementById('proxyProtocol').value = d.data.protocol || 'http';
+                    document.getElementById('proxyHost').value = d.data.host || '';
+                    document.getElementById('proxyPort').value = d.data.port || '';
+                }
+            } catch (e) {
+                console.error('Failed to load proxy config');
+            }
+        }
+
+        async function saveProxyConfig() {
+            const config = {
+                enabled: document.getElementById('proxyEnabled').checked,
+                protocol: document.getElementById('proxyProtocol').value,
+                host: document.getElementById('proxyHost').value.trim(),
+                port: parseInt(document.getElementById('proxyPort').value) || 0,
+            };
+            const statusEl = document.getElementById('proxyStatus');
+            statusEl.textContent = '保存中...';
+            statusEl.className = 'proxy-form-status';
+            try {
+                const d = await apiFetch(`${API_BASE}/proxy/config`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config),
+                    timeout: 5000,
+                });
+                if (d.success) {
+                    statusEl.textContent = '✅ 代理配置已保存';
+                    statusEl.className = 'proxy-form-status success';
+                    setTimeout(() => closeProxyModal(), 800);
+                } else {
+                    statusEl.textContent = '❌ 保存失败';
+                    statusEl.className = 'proxy-form-status error';
+                }
+            } catch (e) {
+                statusEl.textContent = '❌ 网络错误';
+                statusEl.className = 'proxy-form-status error';
+            }
+        }
+
+        function openProxyModal() {
+            document.getElementById('proxyStatus').textContent = '';
+            document.getElementById('proxyStatus').className = 'proxy-form-status';
+            loadProxyConfig();
+            document.getElementById('proxyModal').classList.add('open');
+        }
+
+        function closeProxyModal() {
+            document.getElementById('proxyModal').classList.remove('open');
         }
 
         const LOADING_TEXT = {
@@ -1763,6 +2003,16 @@
         async function init() {
             document.getElementById('movieGrid').innerHTML = `<div class="empty-state" style="grid-column:1/-1"><p style="color:var(--text-secondary)">${LOADING_TEXT.data}</p></div>`;
             setupEventListeners();
+
+            // 代理配置按钮事件
+            document.getElementById('proxyConfigBtn').addEventListener('click', openProxyModal);
+            document.getElementById('proxyModalClose').addEventListener('click', closeProxyModal);
+            document.getElementById('proxyCancel').addEventListener('click', closeProxyModal);
+            document.getElementById('proxySave').addEventListener('click', saveProxyConfig);
+            document.getElementById('proxyModal').addEventListener('click', (e) => {
+                if (e.target === e.currentTarget) closeProxyModal();
+            });
+
             pagination.page = getPageFromUrl();
             await fetchMovies();
             renderMovies();
