@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const axios = require('axios');
-const https = require('https');
 const tmdb = require('../tmdb');
+const logger = require('../utils/logger');
 
 const COUNTRY_CN = {
   'United States': '美国',
@@ -74,17 +73,27 @@ function translateCountries(str) {
   return str.split(' / ').map(c => translateCountry(c.trim())).join(' / ');
 }
 
-// Use proxy matching the system configuration (required for network access)
-const tmdbClient = axios.create({
-  timeout: 15000,
-  proxy: { host: '127.0.0.1', port: 6789, protocol: 'http' },
-  httpsAgent: new https.Agent({ rejectUnauthorized: false }),
-});
+function extractYear(seasonYear, detail) {
+  if (seasonYear) return seasonYear;
+  if (detail.release_date) return parseInt(detail.release_date.slice(0, 4));
+  if (detail.first_air_date) return parseInt(detail.first_air_date.slice(0, 4));
+  return 0;
+}
 
-function tmdbGet(path) {
-  const API_KEY = tmdb.getApiKey();
-  if (!API_KEY) return Promise.reject(new Error('API Key not configured'));
-  return tmdbClient.get(`https://api.themoviedb.org/3${path}&api_key=${API_KEY}`).then(r => r.data);
+function extractCountries(detail) {
+  if (detail.production_countries) {
+    return detail.production_countries.map(c => c.name).join(' / ');
+  } else if (detail.origin_country) {
+    return detail.origin_country.join(' / ');
+  }
+  return '';
+}
+
+function extractTitleInfo(detail) {
+  const seriesTitle = detail.title || detail.name || '';
+  const titleEn = detail.original_title || detail.original_name || '';
+  const tmdbRating = detail.vote_average ? Math.round(detail.vote_average) : 0;
+  return { seriesTitle, titleEn, tmdbRating };
 }
 
 router.get('/config', (req, res) => {
@@ -119,13 +128,16 @@ router.post('/detail', async (req, res) => {
     }
 
     const si = tmdb.parseSeasonInfo(title || '');
+    logger.debug('Parsed season info:', si);
 
     // If tmdb_id is provided, fetch directly by ID
     if (tmdb_id && media_type) {
       let detail;
       try {
-        detail = await tmdbGet(`/${media_type}/${tmdb_id}?language=zh-CN`);
-      } catch { /* fallback to search */ }
+        detail = media_type === 'tv' ? await tmdb.getTvDetails(tmdb_id) : await tmdb.getMovieDetails(tmdb_id);
+      } catch (e) { 
+        logger.error('Error fetching detail by ID:', e.message);
+      }
       if (detail) {
         let posterPath = detail.poster_path;
         let seasonYear = null;
@@ -133,22 +145,27 @@ router.post('/detail', async (req, res) => {
         // If this is a TV series with a season number from title, try to get season-specific info
         if (media_type === 'tv' && si.season > 0) {
           try {
-            const sd = await tmdbGet(`/tv/${tmdb_id}/season/${si.season}?language=zh-CN`);
+            logger.debug(`Fetching season ${si.season} for TV ${tmdb_id}`);
+            const sd = await tmdb.getSeasonDetails(tmdb_id, si.season);
             if (sd) {
               if (sd.poster_path) posterPath = sd.poster_path;
               if (sd.air_date) seasonYear = parseInt(sd.air_date.slice(0, 4));
+              else if (sd.episodes && sd.episodes.length > 0 && sd.episodes[0].air_date) {
+                seasonYear = parseInt(sd.episodes[0].air_date.slice(0, 4));
+              }
+              logger.debug('Season year:', seasonYear);
             }
-          } catch { /* fallback */ }
+          } catch (e) { 
+            logger.error('Error fetching season detail:', e.message);
+          }
         }
 
         const posterUrl = posterPath ? `https://image.tmdb.org/t/p/original${posterPath}` : '';
-        const year = seasonYear || (detail.release_date ? parseInt(detail.release_date.slice(0, 4)) : (detail.first_air_date ? parseInt(detail.first_air_date.slice(0, 4)) : 0));
-        const countries = detail.production_countries ? detail.production_countries.map(c => c.name).join(' / ') : (detail.origin_country ? detail.origin_country.join(' / ') : '');
+        const year = extractYear(seasonYear, detail);
+        const countries = extractCountries(detail);
         const countries_cn = translateCountries(countries);
         const genres = detail.genres ? detail.genres.map(g => g.name) : [];
-        const seriesTitle = detail.title || detail.name || '';
-        const titleEn = detail.original_title || detail.original_name || '';
-        const tmdbRating = detail.vote_average ? Math.round(detail.vote_average) : 0;
+        const { seriesTitle, titleEn, tmdbRating } = extractTitleInfo(detail);
 
         const tmdbUrl = `https://www.themoviedb.org/${media_type}/${tmdb_id}`;
         
@@ -169,14 +186,16 @@ router.post('/detail', async (req, res) => {
     }
 
     const searchQ = si.season > 0 && si.base ? si.base : title;
+    logger.debug('Search query:', searchQ, 'Season:', si.season);
 
-    let searchData;
+    let results;
     try {
-      searchData = await tmdbGet(`/search/multi?query=${encodeURIComponent(searchQ)}&language=zh-CN&page=1`);
+      results = await tmdb.searchMulti(searchQ);
     } catch (e) {
+      logger.error('Search error:', e.message);
       return res.status(502).json({ success: false, message: 'TMDB 请求失败: ' + e.message });
     }
-    const results = searchData.results || [];
+    logger.debug('Search results count:', results.length);
     if (results.length === 0) {
       return res.json({ success: false, message: 'TMDB 未找到该影片' });
     }
@@ -193,12 +212,15 @@ router.post('/detail', async (req, res) => {
       return res.json({ success: false, message: 'TMDB 未找到该影片' });
     }
 
+    logger.debug('Best match:', best.name || best.title, best.id, best.media_type);
     const isTv = best.media_type === 'tv';
 
     let detail;
     try {
-      detail = await tmdbGet(`/${isTv ? 'tv' : 'movie'}/${best.id}?language=zh-CN`);
-    } catch { /* use search result */ }
+      detail = isTv ? await tmdb.getTvDetails(best.id) : await tmdb.getMovieDetails(best.id);
+    } catch (e) { 
+      logger.error('Detail fetch error:', e.message);
+    }
 
     const d = detail || best;
     let posterPath = d.poster_path;
@@ -206,22 +228,27 @@ router.post('/detail', async (req, res) => {
 
     if (isTv && si.season > 0) {
       try {
-        const sd = await tmdbGet(`/tv/${best.id}/season/${si.season}?language=zh-CN`);
+        logger.debug(`Fetching season ${si.season} for TV ${best.id}`);
+        const sd = await tmdb.getSeasonDetails(best.id, si.season);
         if (sd) {
           if (sd.poster_path) posterPath = sd.poster_path;
           if (sd.air_date) seasonYear = parseInt(sd.air_date.slice(0, 4));
+          else if (sd.episodes && sd.episodes.length > 0 && sd.episodes[0].air_date) {
+            seasonYear = parseInt(sd.episodes[0].air_date.slice(0, 4));
+          }
+          logger.debug('Season year from API:', seasonYear);
         }
-      } catch { /* fallback */ }
+      } catch (e) { 
+        logger.error('Season fetch error:', e.message);
+      }
     }
 
     const posterUrl = posterPath ? `https://image.tmdb.org/t/p/original${posterPath}` : '';
-    const year = seasonYear || (d.release_date ? parseInt(d.release_date.slice(0, 4)) : (d.first_air_date ? parseInt(d.first_air_date.slice(0, 4)) : 0));
-    const countries = d.production_countries ? d.production_countries.map(c => c.name).join(' / ') : (d.origin_country ? d.origin_country.join(' / ') : '');
+    const year = extractYear(seasonYear, d);
+    const countries = extractCountries(d);
     const countries_cn = translateCountries(countries);
     const genres = d.genres ? d.genres.map(g => g.name) : [];
-    const seriesTitle = d.title || d.name || '';
-    const titleEn = d.original_title || d.original_name || '';
-    const tmdbRating = d.vote_average ? Math.round(d.vote_average) : 0;
+    const { seriesTitle, titleEn, tmdbRating } = extractTitleInfo(d);
 
     const tmdbUrl = `https://www.themoviedb.org/${best.media_type}/${best.id}`;
 
@@ -239,7 +266,7 @@ router.post('/detail', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('TMDB详情获取失败:', err.message);
+    logger.error('TMDB detail fetch failed:', err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 });

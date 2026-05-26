@@ -2,10 +2,16 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const logger = require('./utils/logger');
 
 if (process.platform === 'win32') {
-  try { require('child_process').execSync('chcp 65001 > nul'); } catch {}
+  try { 
+    require('child_process').execSync('chcp 65001 > nul'); 
+    process.stdout.write('\u001b[?7l');
+  } catch {}
 }
+process.stdout.setEncoding('utf-8');
+process.stderr.setEncoding('utf-8');
 
 // Load .env file BEFORE any local modules that depend on it
 const envPath = path.join(__dirname, '..', '.env');
@@ -22,6 +28,14 @@ if (fs.existsSync(envPath)) {
       process.env[key] = val;
     }
   }
+}
+
+const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_NAME'];
+const missingVars = requiredEnvVars.filter(v => !process.env[v]);
+if (missingVars.length > 0) {
+  logger.error('Error: Missing required environment variables:', missingVars.join(', '));
+  logger.error('Please check your .env file');
+  process.exit(1);
 }
 
 const https = require('https');
@@ -132,6 +146,20 @@ function getLocalIP() {
   }
   return 'localhost';
 }
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception:', err);
+  process.exit(1);
+});
+
+app.use((err, req, res, next) => {
+  logger.error('Express error:', err);
+  res.status(500).json({ success: false, message: '服务器内部错误' });
+});
 
 const HOST = '0.0.0.0';
 const localIP = getLocalIP();

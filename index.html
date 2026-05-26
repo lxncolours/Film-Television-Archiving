@@ -1053,7 +1053,7 @@
     <div class="loading-dialog-overlay" id="loadingDialog">
         <div class="loading-dialog">
             <div class="spinner"></div>
-            <div class="hint" id="loadingHint">正在获取信息...</div>
+            <div class="hint" id="loadingHint">正在加载...</div>
         </div>
     </div>
 
@@ -1206,11 +1206,40 @@
             }
         }
 
-        async function applyFilters() {
-            pagination.page = 1;
-            movies = [];
-            await fetchMovies();
-            renderMovies();
+        const LOADING_TEXT = {
+            default: '正在加载...',
+            movies: '正在加载影片...',
+            data: '正在加载数据...'
+        };
+        
+        let debounceTimer = null;
+        
+        async function applyFilters(resetPage = true, skipDebounce = false) {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            
+            const execute = async () => {
+                try {
+                    if (resetPage) {
+                        pagination.page = 1;
+                        updateUrlPage();
+                    }
+                    movies = [];
+                    showLoading(LOADING_TEXT.movies);
+                    await fetchMovies();
+                    renderMovies();
+                } catch (e) {
+                    console.error('Failed to apply filters:', e);
+                    showNotification('加载失败', 'error');
+                } finally {
+                    hideLoading();
+                }
+            };
+            
+            if (skipDebounce) {
+                await execute();
+            } else {
+                debounceTimer = setTimeout(execute, 150);
+            }
         }
 
         async function fetchMovies() {
@@ -1236,15 +1265,26 @@
                     document.getElementById('movieGrid').innerHTML =
                         '<div class="empty-state"><div class="icon">⚠️</div><p>加载失败</p></div>';
                 }
-            } finally { isLoading = false; }
+            } finally { 
+                isLoading = false;
+            }
         }
 
         async function goToPage(page) {
             if (isLoading || page < 1 || page > pagination.total_pages) return;
             pagination.page = page;
-            await fetchMovies();
-            renderMovies();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            updateUrlPage();
+            try {
+                showLoading('正在加载影片...');
+                await fetchMovies();
+                renderMovies();
+            } catch (e) {
+                console.error('Failed to go to page:', e);
+                showNotification('加载失败', 'error');
+            } finally {
+                hideLoading();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
         }
 
         function renderPagination() {
@@ -1485,7 +1525,7 @@
             }
             const data = await apiFetch(`${API_BASE}/movies/${id}`, { method: 'DELETE' });
             if (data.success) {
-                await fetchMovies(); fetchStats(); applyFilters(); closeModal();
+                await fetchMovies(); fetchStats(); applyFilters(false, true); closeModal();
                 showNotification(`已删除《${movie.title}》`, 'success');
             } else { showNotification('删除失败', 'error'); }
         }
@@ -1520,7 +1560,7 @@
                 }
                 console.log('API Response:', res);
                 if (res.success) {
-                    await fetchMovies(); fetchStats(); applyFilters(); closeAddModal();
+                    await fetchMovies(); fetchStats(); applyFilters(false, true); closeAddModal();
                     showNotification(res.message, 'success');
                 } else { showNotification(res.message || '操作失败', 'error'); }
             } catch (e) { 
@@ -1688,7 +1728,8 @@
                 const searchToggle = document.getElementById('searchToggle');
                 
                 // 只有筛选框点击外部关闭，详情框和编辑框不受影响
-                if (filterOpen && !filterPanel.contains(e.target) && !searchToggle.contains(e.target)) {
+                // 如果正在加载，跳过关闭操作
+                if (!isLoading && filterOpen && !filterPanel.contains(e.target) && !searchToggle.contains(e.target)) {
                     filterOpen = false;
                     filterPanel.classList.remove('open');
                     searchToggle.classList.remove('active');
@@ -1701,10 +1742,30 @@
             setupSearchSuggestions();
         }
 
+        // 从 URL 参数读取页码
+        function getPageFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const page = parseInt(params.get('page'));
+            return isNaN(page) || page < 1 ? 1 : page;
+        }
+
+        // 更新 URL 中的页码参数
+        function updateUrlPage() {
+            const url = new URL(window.location.href);
+            if (pagination.page === 1) {
+                url.searchParams.delete('page');
+            } else {
+                url.searchParams.set('page', pagination.page);
+            }
+            window.history.replaceState({}, '', url);
+        }
+
         async function init() {
-            document.getElementById('movieGrid').innerHTML = '<div class="empty-state" style="grid-column:1/-1"><p style="color:var(--text-secondary)">正在加载数据...</p></div>';
+            document.getElementById('movieGrid').innerHTML = `<div class="empty-state" style="grid-column:1/-1"><p style="color:var(--text-secondary)">${LOADING_TEXT.data}</p></div>`;
             setupEventListeners();
-            await applyFilters();
+            pagination.page = getPageFromUrl();
+            await fetchMovies();
+            renderMovies();
             fetchStats();
             fetchCountries();
             loadNetworkInfo();

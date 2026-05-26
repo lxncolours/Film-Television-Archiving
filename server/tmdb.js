@@ -2,6 +2,7 @@ const axios = require('axios');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const logger = require('./utils/logger');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'tmdb_config.json');
 const POSTER_BASE = 'https://image.tmdb.org/t/p';
@@ -144,7 +145,8 @@ async function getMovieDetails(tmdbId, language = 'zh-CN') {
       params: { api_key: key, language },
     });
     return r.data;
-  } catch {
+  } catch (e) {
+    logger.error('Failed to fetch movie details:', e.message);
     return null;
   }
 }
@@ -159,7 +161,8 @@ async function getTvDetails(tmdbId, language = 'zh-CN') {
       params: { api_key: key, language },
     });
     return r.data;
-  } catch {
+  } catch (e) {
+    logger.error('Failed to fetch TV details:', e.message);
     return null;
   }
 }
@@ -174,7 +177,8 @@ async function getSeasonDetails(tmdbId, seasonNumber, language = 'zh-CN') {
       params: { api_key: key, language },
     });
     return r.data;
-  } catch {
+  } catch (e) {
+    logger.error('Failed to fetch season details:', e.message);
     return null;
   }
 }
@@ -288,5 +292,6 @@ module.exports = {
   getPosterUrl,
   getMovieDetails,
   getTvDetails,
+  getSeasonDetails,
   parseSeasonInfo,
 };

@@ -4,6 +4,7 @@ const pool = require('../db');
 const axios = require('axios');
 const https = require('https');
 const cache = require('../redis');
+const sortConfig = require('../config/sortConfig');
 
 const PROXY = { host: '127.0.0.1', port: 6789 };
 const AGENT = new https.Agent({ rejectUnauthorized: false });
@@ -84,14 +85,11 @@ router.get('/', async (req, res) => {
       countParams.push(countryList);
     }
 
-    const sortMap = {
-      dateDesc: 'archiveDate DESC',
-      dateAsc: 'archiveDate ASC',
-      ratingDesc: 'rating DESC',
-      ratingAsc: 'rating ASC',
-      titleAsc: 'title ASC'
-    };
-    sql += ' ORDER BY ' + (sortMap[sort] || 'archiveDate DESC');
+    const sortClause = sortConfig.movies[sort];
+    if (!sortClause) {
+      return res.status(400).json({ success: false, message: '无效的排序参数' });
+    }
+    sql += ' ORDER BY ' + sortClause;
     sql += ' LIMIT ? OFFSET ?';
     params.push(parseInt(per_page), parseInt(offset));
 

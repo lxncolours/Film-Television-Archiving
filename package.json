@@ -4,11 +4,11 @@
   "description": "观影记录管理系统",
   "main": "server/server.js",
   "scripts": {
-    "init-db": "node server/init-db.js",
-    "migrate": "node server/migrate-csv.js",
-    "setup": "node server/init-db.js && node server/migrate-csv.js",
-    "start": "node server/server.js",
-    "dev": "node server/server.js"
+    "init-db": "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; node server/init-db.js\"",
+    "migrate": "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; node server/migrate-csv.js\"",
+    "setup": "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; node server/init-db.js\" && powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; node server/migrate-csv.js\"",
+    "start": "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; node server/server.js\"",
+    "dev": "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; node server/server.js\""
   },
   "keywords": [],
   "author": "",
