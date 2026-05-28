@@ -39,11 +39,21 @@ async function initDatabase() {
       platform VARCHAR(100) DEFAULT '',
       rating DECIMAL(3,1) DEFAULT 0,
       poster VARCHAR(500) DEFAULT '',
+      poster_data MEDIUMBLOB DEFAULT NULL,
+      poster_mime VARCHAR(50) DEFAULT NULL,
       doubanUrl VARCHAR(500) DEFAULT '',
+      tmdbUrl VARCHAR(500) DEFAULT '',
       archiveDate VARCHAR(50) DEFAULT '',
       notes TEXT DEFAULT NULL,
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS countries (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL UNIQUE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 

@@ -1,0 +1,11 @@
+node_modules/
+.env
+.git
+*.log
+.DS_Store
+Thumbs.db
+dump.rdb
+proxy_config.json
+tmdb_config.json
+.dockerignore
+README.md

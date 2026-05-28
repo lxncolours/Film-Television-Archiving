@@ -6,7 +6,7 @@ let client = null;
 async function getClient() {
   if (!client) {
     client = redis.createClient({
-      socket: { host: '127.0.0.1', port: 6379, reconnectStrategy: false }
+      socket: { host: process.env.REDIS_HOST || '127.0.0.1', port: parseInt(process.env.REDIS_PORT) || 6379, reconnectStrategy: false }
     });
     client.on('error', () => { client = null; });
     try {
