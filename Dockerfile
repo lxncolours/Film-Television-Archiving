@@ -15,7 +15,7 @@ COPY --from=build /app/node_modules ./node_modules
 
 COPY package.json package-lock.json ./
 COPY server ./server
-COPY index.html annual-summary.html ./
+COPY docker-entrypoint.sh index.html annual-summary.html ./
 
 RUN chmod +x docker-entrypoint.sh && \
     addgroup -S appgroup && adduser -S appuser -G appgroup && \
