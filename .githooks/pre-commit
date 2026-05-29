@@ -1,0 +1,32 @@
+#!/bin/sh
+set -e
+
+PACKAGE_JSON="$(git rev-parse --show-toplevel)/package.json"
+
+# 检查 package.json 是否存在且未被合并冲突标记污染
+if [ ! -f "$PACKAGE_JSON" ]; then
+  exit 0
+fi
+if grep -q '<<<<<<<' "$PACKAGE_JSON"; then
+  echo "⚠️  检测到 package.json 存在合并冲突，跳过版本号自动递增"
+  exit 0
+fi
+
+CURRENT_VERSION=$(node -p "require('$PACKAGE_JSON').version")
+MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+
+NEW_PATCH=$((PATCH + 1))
+NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+
+node -e "
+  const fs = require('fs');
+  const pkg = JSON.parse(fs.readFileSync('$PACKAGE_JSON', 'utf8'));
+  pkg.version = '$NEW_VERSION';
+  fs.writeFileSync('$PACKAGE_JSON', JSON.stringify(pkg, null, 2) + '\n');
+"
+
+git add "$PACKAGE_JSON"
+
+echo "🔖 版本号自动递增: v${CURRENT_VERSION} → v${NEW_VERSION}"

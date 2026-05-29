@@ -1,6 +1,6 @@
 {
   "name": "movie-archive",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "观影记录管理系统",
   "main": "server/server.js",
   "scripts": {
@@ -10,7 +10,8 @@
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
-    "docker:restart": "docker compose restart"
+    "docker:restart": "docker compose restart",
+    "postinstall": "git config core.hooksPath .githooks 2>/dev/null; echo 'Git hooks configured'"
   },
   "keywords": [],
   "author": "",
