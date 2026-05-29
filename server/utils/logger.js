@@ -13,7 +13,9 @@ function shouldLog(level) {
 
 function log(level, ...args) {
   if (shouldLog(level)) {
-    const timestamp = new Date().toISOString();
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const timestamp = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     console[level](`[${timestamp}] [${level.toUpperCase()}]`, ...args);
   }
 }

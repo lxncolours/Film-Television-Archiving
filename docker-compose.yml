@@ -4,11 +4,13 @@ services:
     container_name: movie-archive-mysql
     restart: unless-stopped
     environment:
+      TZ: Asia/Shanghai
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
       MYSQL_DATABASE: movie_archive
     ports:
       - "3307:3306"
     volumes:
+      - /etc/localtime:/etc/localtime:ro
       - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root123}"]
@@ -23,9 +25,12 @@ services:
     image: redis:7-alpine
     container_name: movie-archive-redis
     restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
     ports:
       - "6380:6379"
     volumes:
+      - /etc/localtime:/etc/localtime:ro
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -42,6 +47,7 @@ services:
     ports:
       - "5280:5280"
     environment:
+      TZ: Asia/Shanghai
       DB_HOST: mysql
       DB_USER: root
       DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
