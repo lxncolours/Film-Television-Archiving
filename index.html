@@ -929,6 +929,157 @@
         }
         .proxy-form-status.success { color: #10b981; }
         .proxy-form-status.error { color: var(--accent); }
+
+        /* ===== TMDB Config Modal ===== */
+        .tmdb-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .tmdb-modal.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .tmdb-modal-inner {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            width: 420px;
+            max-width: 90vw;
+        }
+        .tmdb-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+        .tmdb-modal-header h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .tmdb-modal-close {
+            width: 32px; height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tmdb-modal-close:hover {
+            border-color: var(--text);
+            color: var(--text);
+        }
+        .tmdb-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            margin-bottom: 1rem;
+        }
+        .tmdb-form-group label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .tmdb-form-group input {
+            padding: 0.6rem 0.8rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 0.85rem;
+            outline: none;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .tmdb-form-group input:focus {
+            border-color: var(--accent);
+        }
+        .tmdb-form-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            margin-top: 0.75rem;
+            min-height: 1.2em;
+            transition: opacity 0.3s;
+        }
+        .tmdb-form-status.success { color: #10b981; }
+        .tmdb-form-status.error { color: var(--accent); }
+        .tmdb-form-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+            justify-content: flex-end;
+        }
+        .tmdb-form-actions button {
+            padding: 0.5rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            border: none;
+        }
+        .tmdb-btn-cancel {
+            background: transparent;
+            border: 1px solid var(--border) !important;
+            color: var(--text-secondary);
+        }
+        .tmdb-btn-cancel:hover {
+            border-color: var(--text) !important;
+            color: var(--text);
+        }
+        .tmdb-btn-save {
+            background: var(--accent);
+            color: white;
+        }
+        .tmdb-btn-save:hover {
+            background: #ff3b6f;
+            transform: translateY(-1px);
+        }
+        .tmdb-form-hint {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: -0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .tmdb-form-hint a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        .tmdb-form-hint a:hover {
+            text-decoration: underline;
+        }
+        .tmdb-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        .tmdb-status-badge.configured {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+        }
+        .tmdb-status-badge.not-configured {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+        }
     </style>
 </head>
 <body>
@@ -1030,6 +1181,11 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                     </svg>
                 </button>
+                <button class="top-bar-btn" id="tmdbConfigBtn" title="TMDB 设置" style="width:28px;height:28px;border-radius:50%;">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                    </svg>
+                </button>
             </div>
         </div>
     </div>
@@ -1069,6 +1225,34 @@
             <div class="proxy-form-actions">
                 <button class="proxy-btn-cancel" id="proxyCancel">取消</button>
                 <button class="proxy-btn-save" id="proxySave">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== TMDB Config Modal ===== -->
+    <div class="tmdb-modal" id="tmdbModal">
+        <div class="tmdb-modal-inner">
+            <div class="tmdb-modal-header">
+                <h3>TMDB 设置</h3>
+                <button class="tmdb-modal-close" id="tmdbModalClose">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="tmdb-form-group">
+                <label for="tmdbApiKey">TMDB API Key</label>
+                <input type="text" id="tmdbApiKey" placeholder="输入你的 TMDB API Key (v3 auth)">
+                <div class="tmdb-form-hint">
+                    前往 <a href="https://www.themoviedb.org/settings/api" target="_blank">themoviedb.org/settings/api</a> 申请
+                </div>
+            </div>
+            <div class="tmdb-form-status" id="tmdbStatus">
+                <span class="tmdb-status-badge not-configured" id="tmdbConfigBadge">● 未配置</span>
+            </div>
+            <div class="tmdb-form-actions">
+                <button class="tmdb-btn-cancel" id="tmdbCancel">取消</button>
+                <button class="tmdb-btn-save" id="tmdbSave">保存</button>
             </div>
         </div>
     </div>
@@ -1444,6 +1628,72 @@
 
         function closeProxyModal() {
             document.getElementById('proxyModal').classList.remove('open');
+        }
+
+        // ===== TMDB Config =====
+        async function loadTmdbConfig() {
+            try {
+                const d = await apiGet(`${API_BASE}/tmdb/config`);
+                if (d.success && d.data) {
+                    const badge = document.getElementById('tmdbConfigBadge');
+                    const input = document.getElementById('tmdbApiKey');
+                    if (d.data.api_key_set) {
+                        badge.textContent = '● 已配置';
+                        badge.className = 'tmdb-status-badge configured';
+                        input.placeholder = 'API Key 已配置，输入新值可更新';
+                    } else {
+                        badge.textContent = '● 未配置';
+                        badge.className = 'tmdb-status-badge not-configured';
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load TMDB config');
+            }
+        }
+
+        async function saveTmdbConfig() {
+            const apiKey = document.getElementById('tmdbApiKey').value.trim();
+            if (!apiKey) {
+                showStatus('请填入 API Key', 'error');
+                return;
+            }
+            showStatus('验证中...', '');
+            try {
+                const d = await apiFetch(`${API_BASE}/tmdb/config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: apiKey }),
+                    timeout: 5000,
+                });
+                if (d.success) {
+                    showStatus('✅ TMDB API Key 已保存', 'success');
+                    await loadTmdbConfig();
+                    setTimeout(() => closeTmdbModal(), 800);
+                } else {
+                    showStatus('❌ ' + (d.message || '保存失败'), 'error');
+                }
+            } catch (e) {
+                showStatus('❌ 网络错误', 'error');
+            }
+        }
+
+        function showStatus(msg, type) {
+            const el = document.getElementById('tmdbStatus');
+            el.textContent = msg;
+            el.className = 'tmdb-form-status' + (type ? ' ' + type : '');
+        }
+
+        function openTmdbModal() {
+            const statusEl = document.getElementById('tmdbStatus');
+            statusEl.textContent = '';
+            statusEl.className = 'tmdb-form-status';
+            document.getElementById('tmdbApiKey').value = '';
+            loadTmdbConfig();
+            document.getElementById('tmdbModal').classList.add('open');
+        }
+
+        function closeTmdbModal() {
+            document.getElementById('tmdbModal').classList.remove('open');
         }
 
         const LOADING_TEXT = {
@@ -2011,6 +2261,15 @@
             document.getElementById('proxySave').addEventListener('click', saveProxyConfig);
             document.getElementById('proxyModal').addEventListener('click', (e) => {
                 if (e.target === e.currentTarget) closeProxyModal();
+            });
+
+            // TMDB 配置按钮事件
+            document.getElementById('tmdbConfigBtn').addEventListener('click', openTmdbModal);
+            document.getElementById('tmdbModalClose').addEventListener('click', closeTmdbModal);
+            document.getElementById('tmdbCancel').addEventListener('click', closeTmdbModal);
+            document.getElementById('tmdbSave').addEventListener('click', saveTmdbConfig);
+            document.getElementById('tmdbModal').addEventListener('click', (e) => {
+                if (e.target === e.currentTarget) closeTmdbModal();
             });
 
             pagination.page = getPageFromUrl();
