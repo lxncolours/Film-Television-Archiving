@@ -1080,6 +1080,262 @@
             background: rgba(239, 68, 68, 0.15);
             color: #ef4444;
         }
+
+        /* ===== Import/Export ===== */
+        .top-bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .action-group {
+            position: relative;
+        }
+        .action-trigger {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.5rem 0.9rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .action-trigger:hover {
+            border-color: var(--text);
+            color: var(--text);
+        }
+        .action-trigger svg { flex-shrink: 0; }
+        .action-dropdown {
+            position: absolute;
+            top: calc(100% + 4px);
+            right: 0;
+            min-width: 150px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.4rem;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-4px);
+            transition: all 0.2s ease;
+            z-index: 600;
+        }
+        .action-group.open .action-dropdown {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        .action-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+            padding: 0.5rem 0.8rem;
+            background: transparent;
+            border: none;
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 0.8rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.15s;
+            text-align: left;
+        }
+        .action-dropdown-item:hover {
+            background: rgba(255,255,255,0.06);
+        }
+        .action-dropdown-item svg {
+            width: 15px;
+            height: 15px;
+            flex-shrink: 0;
+            color: var(--text-secondary);
+        }
+
+        .import-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .import-modal.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .import-modal-inner {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            width: 480px;
+            max-width: 90vw;
+        }
+        .import-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+        .import-modal-header h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .import-modal-close {
+            width: 32px; height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .import-modal-close:hover {
+            border-color: var(--text);
+            color: var(--text);
+        }
+        .import-preview {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+            line-height: 1.6;
+        }
+        .import-preview-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.3rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .import-preview-item:last-child { border-bottom: none; }
+        .import-preview-item .idx {
+            width: 28px;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-align: right;
+            flex-shrink: 0;
+        }
+        .import-preview-item .info {
+            flex: 1;
+            min-width: 0;
+        }
+        .import-preview-item .info .title { font-weight: 500; }
+        .import-preview-item .info .meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        .import-preview-item .poster-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: rgba(16,185,129,0.4);
+            flex-shrink: 0;
+        }
+        .import-preview-item .poster-dot.got { background: #10b981; }
+
+        .import-mode-select {
+            display: flex;
+            gap: 0.75rem;
+            margin: 1rem 0;
+        }
+        .import-mode-btn {
+            flex: 1;
+            padding: 0.6rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-family: inherit;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .import-mode-btn.active {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
+        }
+        .import-mode-btn:hover:not(.active) {
+            border-color: var(--text);
+            color: var(--text);
+        }
+        .import-mode-label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.15rem;
+        }
+        .import-mode-desc {
+            font-size: 0.7rem;
+            opacity: 0.7;
+        }
+
+        .import-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+            justify-content: flex-end;
+        }
+        .import-actions button {
+            padding: 0.5rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            border: none;
+        }
+        .import-btn-cancel {
+            background: transparent;
+            border: 1px solid var(--border) !important;
+            color: var(--text-secondary);
+        }
+        .import-btn-cancel:hover {
+            border-color: var(--text) !important;
+            color: var(--text);
+        }
+        .import-btn-confirm {
+            background: var(--accent);
+            color: white;
+        }
+        .import-btn-confirm:hover {
+            background: #ff3b6f;
+            transform: translateY(-1px);
+        }
+        .import-btn-confirm:disabled {
+            opacity: 0.4;
+            cursor: default;
+            transform: none;
+        }
+        .import-status {
+            font-size: 0.8rem;
+            margin-top: 0.75rem;
+            text-align: center;
+            min-height: 1.2em;
+            transition: opacity 0.3s;
+        }
+        .import-status.success { color: #10b981; }
+        .import-status.error { color: var(--accent); }
+
+        .file-input-hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -1109,6 +1365,36 @@
                 </svg>
                 新增
             </button>
+            <div class="top-bar-actions">
+                <div class="action-group" id="exportGroup">
+                    <button class="action-trigger" onclick="toggleExportMenu(event)">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        导出 ▾
+                    </button>
+                    <div class="action-dropdown">
+                        <button class="action-dropdown-item" onclick="exportJSON()">
+                            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                            导出 JSON
+                        </button>
+                        <button class="action-dropdown-item" onclick="exportCSV()">
+                            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            导出 CSV
+                        </button>
+                    </div>
+                </div>
+                <button class="action-trigger" onclick="triggerImport()">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L5 8m4-4v12"></path>
+                    </svg>
+                    导入
+                </button>
+            </div>
         </div>
     </header>
 
@@ -1253,6 +1539,47 @@
             <div class="tmdb-form-actions">
                 <button class="tmdb-btn-cancel" id="tmdbCancel">取消</button>
                 <button class="tmdb-btn-save" id="tmdbSave">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Import Modal ===== -->
+    <div class="import-modal" id="importModal">
+        <div class="import-modal-inner">
+            <div class="import-modal-header">
+                <h3 id="importModalTitle">导入数据</h3>
+                <button class="import-modal-close" id="importModalClose">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="importBody">
+                <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:1rem">
+                    选择之前导出的 JSON 文件进行导入，支持含海报数据的完整迁移。
+                </p>
+                <div class="import-mode-select" id="importModeSelect">
+                    <button class="import-mode-btn active" data-mode="append" onclick="setImportMode('append')">
+                        <span class="import-mode-label">追加导入</span>
+                        <span class="import-mode-desc">直接新增所有记录</span>
+                    </button>
+                    <button class="import-mode-btn" data-mode="skip" onclick="setImportMode('skip')">
+                        <span class="import-mode-label">去重导入</span>
+                        <span class="import-mode-desc">跳过已存在的记录</span>
+                    </button>
+                </div>
+                <button class="action-trigger" onclick="selectImportFile()" style="width:100%;justify-content:center;padding:0.8rem;border-radius:8px;font-size:0.85rem">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <span id="importFileLabel">选择文件...</span>
+                </button>
+                <div class="import-preview" id="importPreview" style="display:none"></div>
+                <div class="import-status" id="importStatus"></div>
+            </div>
+            <div class="import-actions">
+                <button class="import-btn-cancel" id="importCancel">取消</button>
+                <button class="import-btn-confirm" id="importConfirm" disabled onclick="confirmImport()">开始导入</button>
             </div>
         </div>
     </div>
@@ -1416,6 +1743,7 @@
 
     <!-- ===== Notification ===== -->
     <div class="notification" id="notification"></div>
+    <input type="file" class="file-input-hidden" id="importFileInput" accept=".json">
 
     <div class="loading-dialog-overlay" id="loadingDialog">
         <div class="loading-dialog">
@@ -1901,6 +2229,13 @@
             const posterHTML = (movie.has_poster_data || movie.poster)
                 ? `<div class="modal-poster"><img src="${proxyImg(movie)}" alt="${movie.title}" onerror="this.parentElement.innerHTML=''"></div>`
                 : '';
+            const doubanLink = movie.doubanUrl ? `
+                <a href="${movie.doubanUrl}" target="_blank" class="douban-link" onclick="event.stopPropagation();" style="background:rgba(6,179,54,0.1);border-color:rgba(6,179,54,0.3)">
+                    <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M0 8h2v9h3V8h2l7 9h3V6h-3v7L9 6H6v7L0 8z"/></svg>
+                    豆瓣
+                </a>
+            ` : '';
+
             const tmdbLink = movie.tmdbUrl ? `
                 <a href="${movie.tmdbUrl}" target="_blank" class="douban-link" onclick="event.stopPropagation();">
                     <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
@@ -1926,7 +2261,7 @@
                     <button class="action-btn edit" onclick="event.stopPropagation();event.preventDefault();editMovie(${movie.id})">✏️ 编辑</button>
                     <button class="action-btn delete" onclick="event.stopPropagation();event.preventDefault();deleteMovie(${movie.id})">🗑️ 删除</button>
                 </div>
-                ${tmdbLink}
+                ${doubanLink}${tmdbLink}
             `;
 
             document.getElementById('modal').classList.add('active');
@@ -2227,7 +2562,7 @@
             });
             document.getElementById('modalClose').addEventListener('click', closeModal);
             document.getElementById('movieForm').addEventListener('submit', handleFormSubmit);
-            document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeAddModal(); } });
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeAddModal(); closeImportModal(); } });
 
             setupSearchSuggestions();
         }
@@ -2272,12 +2607,204 @@
                 if (e.target === e.currentTarget) closeTmdbModal();
             });
 
+            // 导入弹窗事件
+            document.getElementById('importModalClose').addEventListener('click', closeImportModal);
+            document.getElementById('importCancel').addEventListener('click', closeImportModal);
+            document.getElementById('importModal').addEventListener('click', (e) => {
+                if (e.target === e.currentTarget) closeImportModal();
+            });
+
             pagination.page = getPageFromUrl();
             await fetchMovies();
             renderMovies();
             fetchStats();
             fetchCountries();
             loadNetworkInfo();
+        }
+
+        // ===== Export =====
+        let importMode = 'append';
+        let importData = null;
+
+        function toggleExportMenu(e) {
+            e.stopPropagation();
+            document.getElementById('exportGroup').classList.toggle('open');
+        }
+
+        document.addEventListener('click', function(e) {
+            const group = document.getElementById('exportGroup');
+            if (!group.contains(e.target)) {
+                group.classList.remove('open');
+            }
+        });
+
+        async function exportJSON() {
+            document.getElementById('exportGroup').classList.remove('open');
+            showLoading('正在导出 JSON...');
+            try {
+                const d = await apiGet(`${API_BASE}/movies/export`);
+                if (d.success) {
+                    const blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' });
+                    downloadBlob(blob, `movie-archive-${new Date().toISOString().slice(0,10)}.json`);
+                    showNotification(`导出成功，共 ${d.total} 条记录`, 'success');
+                } else {
+                    showNotification('导出失败', 'error');
+                }
+            } catch {
+                showNotification('导出失败', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function exportCSV() {
+            document.getElementById('exportGroup').classList.remove('open');
+            showLoading('正在导出 CSV...');
+            try {
+                const res = await fetch(`${API_BASE}/movies/export?format=csv`);
+                if (res.ok) {
+                    const blob = await res.blob();
+                    downloadBlob(blob, `movie-archive-${new Date().toISOString().slice(0,10)}.csv`);
+                    showNotification('CSV 导出成功', 'success');
+                } else {
+                    showNotification('导出失败', 'error');
+                }
+            } catch {
+                showNotification('导出失败', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ===== Import =====
+        function triggerImport() {
+            importMode = 'append';
+            importData = null;
+            document.getElementById('importFileLabel').textContent = '选择文件...';
+            document.getElementById('importPreview').style.display = 'none';
+            document.getElementById('importPreview').innerHTML = '';
+            document.getElementById('importStatus').textContent = '';
+            document.getElementById('importStatus').className = 'import-status';
+            document.getElementById('importConfirm').disabled = true;
+            document.getElementById('importModal').classList.add('open');
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').classList.remove('open');
+            importData = null;
+        }
+
+        function setImportMode(mode) {
+            importMode = mode;
+            document.querySelectorAll('#importModeSelect .import-mode-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === mode);
+            });
+        }
+
+        function selectImportFile() {
+            document.getElementById('importFileInput').click();
+        }
+
+        document.getElementById('importFileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                try {
+                    const parsed = JSON.parse(ev.target.result);
+                    let movies = [];
+                    if (parsed.success && Array.isArray(parsed.data)) {
+                        movies = parsed.data;
+                    } else if (Array.isArray(parsed)) {
+                        movies = parsed;
+                    } else if (parsed.data && Array.isArray(parsed.data)) {
+                        movies = parsed.data;
+                    }
+                    if (movies.length === 0) {
+                        document.getElementById('importStatus').textContent = '❌ 未找到有效的影片数据';
+                        document.getElementById('importStatus').className = 'import-status error';
+                        return;
+                    }
+                    importData = movies;
+                    document.getElementById('importFileLabel').textContent = `${file.name} (${movies.length} 条)`;
+                    document.getElementById('importConfirm').disabled = false;
+
+                    const previewEl = document.getElementById('importPreview');
+                    const maxShow = Math.min(movies.length, 50);
+                    let html = `<div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.5rem">预览前 ${maxShow} 条 / 共 ${movies.length} 条</div>`;
+                    for (let i = 0; i < maxShow; i++) {
+                        const m = movies[i];
+                        html += `<div class="import-preview-item">
+                            <span class="idx">${i + 1}</span>
+                            <span class="poster-dot ${m.poster_data ? 'got' : ''}"></span>
+                            <span class="info">
+                                <span class="title">${m.title || '未知'}</span>
+                                <span class="meta">${m.year || ''}${m.year && m.type ? ' · ' : ''}${m.type || ''}${m.platform ? ' · ' + m.platform : ''}</span>
+                            </span>
+                        </div>`;
+                    }
+                    if (movies.length > maxShow) {
+                        html += `<div style="text-align:center;color:var(--text-secondary);padding:0.5rem;font-size:0.75rem">... 还有 ${movies.length - maxShow} 条</div>`;
+                    }
+                    previewEl.innerHTML = html;
+                    previewEl.style.display = 'block';
+                    document.getElementById('importStatus').textContent = `✅ 已读取 ${movies.length} 条记录，含海报: ${movies.filter(m => m.poster_data).length} 条`;
+                    document.getElementById('importStatus').className = 'import-status success';
+                } catch {
+                    document.getElementById('importStatus').textContent = '❌ 文件解析失败，请确认是有效的 JSON 文件';
+                    document.getElementById('importStatus').className = 'import-status error';
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        });
+
+        async function confirmImport() {
+            if (!importData || importData.length === 0) return;
+            const confirmBtn = document.getElementById('importConfirm');
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = '导入中...';
+            const statusEl = document.getElementById('importStatus');
+            statusEl.textContent = `正在导入 ${importData.length} 条记录...`;
+            statusEl.className = 'import-status';
+            try {
+                const d = await apiFetch(`${API_BASE}/movies/import`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: importData, mode: importMode }),
+                    timeout: 120000
+                });
+                if (d.success) {
+                    statusEl.textContent = `✅ ${d.message}`;
+                    statusEl.className = 'import-status success';
+                    setTimeout(() => {
+                        closeImportModal();
+                        applyFilters();
+                        fetchStats();
+                        fetchCountries();
+                    }, 1500);
+                } else {
+                    statusEl.textContent = `❌ ${d.message || '导入失败'}`;
+                    statusEl.className = 'import-status error';
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = '开始导入';
+                }
+            } catch {
+                statusEl.textContent = '❌ 网络错误，导入失败';
+                statusEl.className = 'import-status error';
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = '开始导入';
+            }
         }
 
         document.addEventListener('DOMContentLoaded', init);

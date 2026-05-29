@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const tmdb = require('../tmdb');
+const logger = require('../utils/logger');
 
 router.get('/search', async (req, res) => {
   try {
@@ -16,17 +17,11 @@ router.get('/search', async (req, res) => {
 
     const si = tmdb.parseSeasonInfo(q);
     let searchQ = si.season > 0 && si.base ? si.base : q;
-    
-    console.log(`搜索查询: "${q}", 解析季数: ${si.season}, 搜索关键词: "${searchQ}"`);
 
     let results = await tmdb.searchMulti(searchQ);
-    console.log(`TMDB搜索结果数量(使用base): ${results.length}`);
     
-    // 如果使用base搜索没有结果，尝试使用原始查询
     if (si.season > 0 && si.base && results.length === 0) {
-      console.log(`使用base搜索无结果，尝试使用原始查询 "${q}"`);
       results = await tmdb.searchMulti(q);
-      console.log(`TMDB搜索结果数量(使用原始): ${results.length}`);
     }
     
     const data = results
@@ -45,7 +40,7 @@ router.get('/search', async (req, res) => {
 
     res.json({ success: true, data });
   } catch (error) {
-    console.error('搜索API错误:', error.message);
+    logger.error('搜索API错误:', error.message);
     res.json({ success: false, message: '搜索失败', error: error.message });
   }
 });
@@ -76,7 +71,7 @@ router.get('/detail/:id', async (req, res) => {
 
     res.json({ success: false, message: '未找到影片' });
   } catch (error) {
-    console.error('详情API错误:', error.message);
+    logger.error('详情API错误:', error.message);
     res.json({ success: false, message: '获取详情失败', error: error.message });
   }
 });

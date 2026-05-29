@@ -1,8 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
 const logger = require('./utils/logger');
+const { loadEnv } = require('./utils/env');
+
+loadEnv();
 
 if (process.platform === 'win32') {
   try { 
@@ -13,23 +15,6 @@ if (process.platform === 'win32') {
 process.stdout.setEncoding('utf-8');
 process.stderr.setEncoding('utf-8');
 
-// Load .env file BEFORE any local modules that depend on it
-const envPath = path.join(__dirname, '..', '.env');
-if (fs.existsSync(envPath)) {
-  const envContent = fs.readFileSync(envPath, 'utf8');
-  for (const line of envContent.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eqIdx = trimmed.indexOf('=');
-    if (eqIdx === -1) continue;
-    const key = trimmed.slice(0, eqIdx).trim();
-    const val = trimmed.slice(eqIdx + 1).trim();
-    if (!process.env[key]) {
-      process.env[key] = val;
-    }
-  }
-}
-
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_NAME'];
 const missingVars = requiredEnvVars.filter(v => !process.env[v]);
 if (missingVars.length > 0) {
@@ -38,19 +23,16 @@ if (missingVars.length > 0) {
   process.exit(1);
 }
 
-const https = require('https');
 const movieRoutes = require('./routes/movies');
 const doubanRoutes = require('./routes/douban');
 const tmdbRoutes = require('./routes/tmdb');
 const os = require('os');
-const axios = require('axios');
 const backgroundTasks = require('./background_tasks');
 const proxyConfig = require('./proxy-config');
 
 const app = express();
 const PORT = process.env.PORT || 5280;
 const VERSION = process.env.APP_VERSION || require('../package.json').version;
-const AGENT = new https.Agent({ rejectUnauthorized: false });
 
 const proxyAxios = proxyConfig.createAxiosInstance();
 
@@ -60,10 +42,9 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json({ type: 'application/json' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ type: 'application/json', limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Disable cache for index.html to ensure latest code
 app.use((req, res, next) => {
   if (req.path.endsWith('.html')) {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -80,13 +61,25 @@ app.use(express.static(path.join(__dirname, '..'), {
   }
 }));
 
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    logger.info(`${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms`);
+  });
+  next();
+});
+
 app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', version: VERSION });
+});
 
 app.use('/api/movies', movieRoutes);
 app.use('/api/douban', doubanRoutes);
 app.use('/api/tmdb', tmdbRoutes);
 
-// 后台任务控制接口
 app.get('/api/background/status', (req, res) => {
   res.json({ success: true, data: backgroundTasks.getStats() });
 });
@@ -101,7 +94,6 @@ app.post('/api/background/stop', (req, res) => {
   res.json({ success: true, message: '后台任务已停止' });
 });
 
-// 代理配置接口
 app.get('/api/proxy/config', (req, res) => {
   res.json({ success: true, data: proxyConfig.getConfig() });
 });
@@ -162,8 +154,8 @@ function getLocalIP() {
   return 'localhost';
 }
 
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled Rejection:', reason);
 });
 
 process.on('uncaughtException', (err) => {
@@ -184,8 +176,6 @@ app.listen(PORT, HOST, () => {
   console.log(`  Local:   http://localhost:${PORT}`);
   console.log(`  Network: http://${localIP}:${PORT}`);
   console.log('');
-  // 后台海报获取任务已禁用自动启动
-  // 如需启动，请调用 POST /api/background/start
   console.log('提示: 后台海报获取任务已禁用自动启动');
   console.log('      如需启动，请调用 POST /api/background/start');
 });

@@ -1,4 +1,5 @@
 const redis = require('redis');
+const logger = require('./utils/logger');
 
 const CACHE_TTL = 300;
 let client = null;
@@ -6,12 +7,14 @@ let client = null;
 async function getClient() {
   if (!client) {
     client = redis.createClient({
+      disableOfflineQueue: true,
       socket: { host: process.env.REDIS_HOST || '127.0.0.1', port: parseInt(process.env.REDIS_PORT) || 6379, reconnectStrategy: false }
     });
-    client.on('error', () => { client = null; });
+    client.on('error', (err) => { logger.debug('Redis client error:', err.message); client = null; });
     try {
       await client.connect();
     } catch (e) {
+      logger.debug('Redis connection failed:', e.message);
       client = null;
       return null;
     }
@@ -24,13 +27,31 @@ function makeKey(path, params) {
   return 'movies:' + path + '?' + sorted;
 }
 
+async function scanKeys(pattern) {
+  const c = await getClient();
+  if (!c) return [];
+  const keys = [];
+  let cursor = 0;
+  try {
+    do {
+      const result = await c.scan(cursor, { MATCH: pattern, COUNT: 100 });
+      cursor = result.cursor;
+      keys.push(...result.keys);
+    } while (cursor !== 0);
+  } catch (e) {
+    logger.debug('Redis SCAN error:', e.message);
+  }
+  return keys;
+}
+
 async function get(key) {
   try {
     const c = await getClient();
     if (!c) return null;
     const raw = await c.get(key);
     return raw ? JSON.parse(raw) : null;
-  } catch {
+  } catch (e) {
+    logger.debug('Redis get error:', e.message);
     return null;
   }
 }
@@ -40,21 +61,20 @@ async function set(key, data, ttl = CACHE_TTL) {
     const c = await getClient();
     if (!c) return;
     await c.setEx(key, ttl, JSON.stringify(data));
-  } catch {
-    // ignore
+  } catch (e) {
+    logger.debug('Redis set error:', e.message);
   }
 }
 
 async function del(pattern) {
   try {
-    const c = await getClient();
-    if (!c) return;
-    const keys = await c.keys(pattern);
+    const keys = await scanKeys(pattern);
     if (keys.length > 0) {
-      await c.del(keys);
+      const c = await getClient();
+      if (c) await c.del(keys);
     }
-  } catch {
-    // ignore
+  } catch (e) {
+    logger.debug('Redis del error:', e.message);
   }
 }
 
@@ -67,8 +87,7 @@ async function updateMovieInCache(movieId, updatedData) {
     const c = await getClient();
     if (!c) return;
     
-    // Find all cached lists and update the movie if it exists
-    const keys = await c.keys('movies:list*');
+    const keys = await scanKeys('movies:list*');
     for (const key of keys) {
       const raw = await c.get(key);
       if (!raw) continue;
@@ -77,7 +96,6 @@ async function updateMovieInCache(movieId, updatedData) {
         if (cachedData.data && Array.isArray(cachedData.data)) {
           const movieIndex = cachedData.data.findIndex(m => String(m.id) === String(movieId));
           if (movieIndex !== -1) {
-            // Update only the poster-related fields
             cachedData.data[movieIndex] = {
               ...cachedData.data[movieIndex],
               ...updatedData
@@ -85,12 +103,12 @@ async function updateMovieInCache(movieId, updatedData) {
             await c.setEx(key, CACHE_TTL, JSON.stringify(cachedData));
           }
         }
-      } catch {
-        // Ignore parsing errors
+      } catch (e) {
+        logger.debug('Redis updateMovieInCache parse error:', e.message);
       }
     }
-  } catch {
-    // ignore
+  } catch (e) {
+    logger.debug('Redis updateMovieInCache error:', e.message);
   }
 }
 

@@ -16,7 +16,7 @@ function log(level, ...args) {
     const d = new Date();
     const pad = n => String(n).padStart(2, '0');
     const timestamp = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    console[level](`[${timestamp}] [${level.toUpperCase()}]`, ...args);
+    console[level === 'debug' ? 'log' : level](`[${timestamp}] [${level.toUpperCase()}]`, ...args);
   }
 }
 
@@ -25,5 +25,4 @@ module.exports = {
   info: (...args) => log('info', ...args),
   warn: (...args) => log('warn', ...args),
   error: (...args) => log('error', ...args),
-  log: console.log.bind(console)
 };

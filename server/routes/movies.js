@@ -1,12 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const https = require('https');
 const cache = require('../redis');
 const sortConfig = require('../config/sortConfig');
 const proxyConfig = require('../proxy-config');
-
-const AGENT = new https.Agent({ rejectUnauthorized: false });
+const logger = require('../utils/logger');
 
 const proxyAxios = proxyConfig.createAxiosInstance();
 
@@ -21,7 +19,7 @@ function parseArrayParam(param) {
 
 router.get('/', async (req, res) => {
   try {
-    const { search, type, year, platform, country, sort, order, page = 1, per_page = 20 } = req.query;
+    const { search, type, year, platform, country, sort, page = 1, per_page = 20 } = req.query;
     
     const typeList = parseArrayParam(type);
     const yearList = parseArrayParam(year);
@@ -43,7 +41,7 @@ router.get('/', async (req, res) => {
 
     const offset = (page - 1) * per_page;
     
-    let sql = 'SELECT id, title, altTitle, year, country, type, category, platform, rating, poster, poster_mime, tmdbUrl, archiveDate, notes, createdAt, updatedAt, (poster_data IS NOT NULL AND poster_data != \'\') as has_poster_data FROM movies WHERE 1=1';
+    let sql = 'SELECT id, title, altTitle, year, country, type, category, platform, rating, poster, poster_mime, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt, (poster_data IS NOT NULL AND poster_data != \'\') as has_poster_data FROM movies WHERE 1=1';
     let countSql = 'SELECT COUNT(*) as total FROM movies WHERE 1=1';
     const params = [];
     const countParams = [];
@@ -208,6 +206,79 @@ router.get('/annual/:year', async (req, res) => {
   }
 });
 
+router.get('/export', async (req, res) => {
+  try {
+    const { format = 'json' } = req.query;
+
+    const [rows] = await pool.query(
+      `SELECT title, altTitle, year, country, type, category, tags, platform, rating, poster, poster_data, poster_mime, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt FROM movies ORDER BY id ASC`
+    );
+
+    if (format === 'csv') {
+      const headers = ['片名', '其他片名', '上映年份', '国家/地区', '类型', '分类', '标签', '观看平台', '评分', '海报链接', '豆瓣链接', 'TMDB链接', '归档日期', '备注'];
+      const rows_csv = rows.map(row => {
+        const tags = row.tags ? (() => { try { return JSON.parse(row.tags); } catch { return []; } })() : [];
+        return [
+          escapeCsvField(row.title),
+          escapeCsvField(row.altTitle),
+          row.year,
+          escapeCsvField(row.country),
+          escapeCsvField(row.type),
+          escapeCsvField(row.category),
+          escapeCsvField(tags.join(',')),
+          escapeCsvField(row.platform),
+          row.rating,
+          escapeCsvField(row.poster),
+          escapeCsvField(row.doubanUrl),
+          escapeCsvField(row.tmdbUrl),
+          escapeCsvField(row.archiveDate),
+          escapeCsvField(row.notes || ''),
+        ].join(',');
+      }).join('\n');
+
+      const bom = '\uFEFF';
+      const csv = bom + headers.join(',') + '\n' + rows_csv;
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="movie-archive-export.csv"');
+      res.send(csv);
+      return;
+    }
+
+    const movies = rows.map(row => {
+      const movie = { ...row };
+      if (movie.poster_data) {
+        movie.poster_data = Buffer.from(movie.poster_data).toString('base64');
+      }
+      if (movie.tags && typeof movie.tags === 'string') {
+        try { movie.tags = JSON.parse(movie.tags); } catch { movie.tags = []; }
+      }
+      movie.rating = Number(movie.rating);
+      movie.year = Number(movie.year);
+      return movie;
+    });
+
+    res.json({
+      success: true,
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      total: movies.length,
+      data: movies
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+function escapeCsvField(val) {
+  if (val == null) return '';
+  const str = String(val);
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
 router.get('/:id', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM movies WHERE id = ?', [req.params.id]);
@@ -334,7 +405,7 @@ router.post('/fetch-poster/:id', async (req, res) => {
         posterUrl = await tmdb.findPosterByTitle(movie.title, movie.altTitle, movie.tmdbUrl, movie.type);
       }
     } catch (e) {
-      console.log('TMDB获取海报失败:', movie.title, e.message);
+      logger.warn('TMDB获取海报失败:', movie.title, e.message);
     }
 
     if (posterUrl) {
@@ -368,6 +439,117 @@ router.get('/poster/:id/image', async (req, res) => {
     res.send(row.poster_data);
   } catch (err) {
     res.status(500).send('Server error');
+  }
+});
+
+router.post('/import', async (req, res) => {
+  try {
+    const { data: movies, mode = 'append' } = req.body;
+
+    if (!Array.isArray(movies) || movies.length === 0) {
+      return res.status(400).json({ success: false, message: '请提供有效的导入数据' });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      let imported = 0;
+      let skipped = 0;
+      const BATCH_SIZE = 50;
+      let batch = [];
+      const countrySet = new Set();
+
+      for (const movie of movies) {
+        const title = movie.title;
+        const archiveDate = movie.archiveDate || '';
+
+        if (!title) {
+          skipped++;
+          continue;
+        }
+
+        if (mode === 'skip') {
+          const [existing] = await conn.query('SELECT id FROM movies WHERE title = ? AND archiveDate = ?', [title, archiveDate]);
+          if (existing.length > 0) {
+            skipped++;
+            continue;
+          }
+        }
+
+        let posterDataBuf = null;
+        if (movie.poster_data) {
+          posterDataBuf = Buffer.from(movie.poster_data, 'base64');
+        }
+
+        let tagsJson = '[]';
+        if (movie.tags) {
+          tagsJson = Array.isArray(movie.tags) ? JSON.stringify(movie.tags) : String(movie.tags);
+        }
+
+        batch.push([
+          title,
+          movie.altTitle || '',
+          movie.year || 0,
+          movie.country || '',
+          movie.type || '',
+          movie.category || '',
+          tagsJson,
+          movie.platform || '',
+          movie.rating || 0,
+          movie.poster || '',
+          posterDataBuf,
+          posterDataBuf ? (movie.poster_mime || 'image/jpeg') : null,
+          movie.doubanUrl || '',
+          movie.tmdbUrl || '',
+          archiveDate,
+          movie.notes || '',
+          movie.createdAt || new Date(),
+          movie.updatedAt || new Date()
+        ]);
+
+        if (movie.country) {
+          movie.country.split(/[\/,，、]+/).map(s => s.trim()).filter(Boolean).forEach(c => countrySet.add(c));
+        }
+
+        imported++;
+
+        if (batch.length >= BATCH_SIZE) {
+          await conn.query(
+            'INSERT INTO movies (title, altTitle, year, country, type, category, tags, platform, rating, poster, poster_data, poster_mime, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt) VALUES ?',
+            [batch]
+          );
+          batch = [];
+        }
+      }
+
+      if (batch.length > 0) {
+        await conn.query(
+          'INSERT INTO movies (title, altTitle, year, country, type, category, tags, platform, rating, poster, poster_data, poster_mime, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt) VALUES ?',
+          [batch]
+        );
+      }
+
+      for (const name of countrySet) {
+        await conn.query('INSERT IGNORE INTO countries (name) VALUES (?)', [name]);
+      }
+
+      await conn.commit();
+      await cache.flushMovies().catch(() => {});
+
+      res.json({
+        success: true,
+        message: `导入完成: 新增 ${imported} 条${skipped > 0 ? `, 跳过 ${skipped} 条(已存在)` : ''}`,
+        data: { imported, skipped }
+      });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
