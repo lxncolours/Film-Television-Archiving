@@ -1,6 +1,11 @@
 #!/bin/sh
 set -e
 
+APP_VERSION=$(node -p "require('./package.json').version")
+echo "=========================================="
+echo "  Movie Archive Server v${APP_VERSION}"
+echo "=========================================="
+
 echo "Waiting for MySQL..."
 MAX_RETRIES=30
 i=0
@@ -25,5 +30,5 @@ echo "MySQL is ready!"
 echo "Initializing database..."
 node server/init-db.js
 
-echo "Starting server..."
+echo "Starting Movie Archive Server v${APP_VERSION}..."
 exec node server/server.js

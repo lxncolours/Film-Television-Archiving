@@ -49,6 +49,7 @@ const proxyConfig = require('./proxy-config');
 
 const app = express();
 const PORT = process.env.PORT || 5280;
+const VERSION = process.env.APP_VERSION || require('../package.json').version;
 const AGENT = new https.Agent({ rejectUnauthorized: false });
 
 const proxyAxios = proxyConfig.createAxiosInstance();
@@ -179,7 +180,7 @@ const HOST = '0.0.0.0';
 const localIP = getLocalIP();
 
 app.listen(PORT, HOST, () => {
-  console.log(`Movie Archive Server running at:`);
+  console.log(`Movie Archive Server v${VERSION} running at:`);
   console.log(`  Local:   http://localhost:${PORT}`);
   console.log(`  Network: http://${localIP}:${PORT}`);
   console.log('');
