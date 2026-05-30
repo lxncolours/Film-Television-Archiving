@@ -4,7 +4,6 @@ const pool = require('../db');
 const cache = require('../redis');
 const sortConfig = require('../config/sortConfig');
 const proxyConfig = require('../proxy-config');
-const logger = require('../utils/logger');
 
 const proxyAxios = proxyConfig.createAxiosInstance();
 
@@ -411,7 +410,7 @@ router.post('/fetch-poster/:id', async (req, res) => {
         posterUrl = await tmdb.findPosterByTitle(movie.title, movie.altTitle, movie.tmdbUrl, movie.type);
       }
     } catch (e) {
-      logger.warn('TMDB获取海报失败:', movie.title, e.message);
+      console.log('TMDB获取海报失败:', movie.title, e.message);
     }
 
     if (posterUrl) {
