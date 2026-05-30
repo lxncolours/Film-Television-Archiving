@@ -17,9 +17,14 @@ function parseArrayParam(param) {
   return [];
 }
 
+function normalizeDate(dateStr) {
+  if (!dateStr) return '';
+  return dateStr.replace(/\//g, '-');
+}
+
 router.get('/', async (req, res) => {
   try {
-    const { search, type, year, platform, country, sort, page = 1, per_page = 20 } = req.query;
+    const { search, type, year, platform, country, sort = 'dateDesc', page = 1, per_page = 20 } = req.query;
     
     const typeList = parseArrayParam(type);
     const yearList = parseArrayParam(year);
@@ -310,10 +315,10 @@ router.post('/', async (req, res) => {
 
     const [result] = await pool.query(
       `INSERT INTO movies (title, altTitle, year, country, type, category, platform, rating, poster, tmdbUrl, archiveDate, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [title, altTitle || '', year || 0, country || '', type, category || '', platform, rating || 0, poster || '', tmdbUrl || '', archiveDate, notes || '']
+      [title, altTitle || '', year || 0, country || '', type, category || '', platform, rating || 0, poster || '', tmdbUrl || '', normalizeDate(archiveDate), notes || '']
     );
 
-    cache.flushMovies().catch(() => {});
+    await cache.flushMovies();
     res.json({ success: true, data: { id: result.insertId }, message: '新增成功' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -343,7 +348,7 @@ router.put('/:id', async (req, res) => {
 
     await pool.query(
       `UPDATE movies SET title=?, altTitle=?, year=?, country=?, type=?, category=?, platform=?, rating=?, poster=?, tmdbUrl=?, archiveDate=?, notes=?${posterDataSql} WHERE id=?`,
-      [title, altTitle || '', year || 0, country || '', type, category || '', platform, rating || 0, poster || '', tmdbUrl || '', archiveDate, notes || '', req.params.id]
+      [title, altTitle || '', year || 0, country || '', type, category || '', platform, rating || 0, poster || '', tmdbUrl || '', normalizeDate(archiveDate), notes || '', req.params.id]
     );
 
     const updatedData = {
@@ -357,11 +362,12 @@ router.put('/:id', async (req, res) => {
       rating: rating || 0,
       poster: poster || '',
       tmdbUrl: tmdbUrl || '',
-      archiveDate,
+      archiveDate: normalizeDate(archiveDate),
       notes: notes || '',
       has_poster_data: !posterChanged && hadPosterData
     };
     await cache.updateMovieInCache(req.params.id, updatedData);
+    await cache.flushMovies();
 
     res.json({ success: true, message: '更新成功' });
   } catch (err) {
@@ -372,7 +378,7 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM movies WHERE id = ?', [req.params.id]);
-    cache.flushMovies().catch(() => {});
+    await cache.flushMovies();
     res.json({ success: true, message: '删除成功' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -415,7 +421,7 @@ router.post('/fetch-poster/:id', async (req, res) => {
           'UPDATE movies SET poster = ?, poster_data = ?, poster_mime = ? WHERE id = ?',
           [posterUrl, image.data, image.mime, id]
         );
-        cache.flushMovies().catch(() => {});
+        await cache.flushMovies();
         res.json({ success: true, message: '海报获取成功' });
       } else {
         await pool.query('UPDATE movies SET poster = ? WHERE id = ?', [posterUrl, id]);

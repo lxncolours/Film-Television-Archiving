@@ -1,5 +1,6 @@
 const tmdb = require('./tmdb');
 const dbPool = require('./db');
+const cache = require('./redis');
 const proxyConfig = require('./proxy-config');
 const logger = require('./utils/logger');
 
@@ -41,6 +42,7 @@ async function fetchOnePoster() {
 
     if (!posterUrl) {
       await dbPool.query("UPDATE movies SET poster = '_not_found_' WHERE id = ?", [movie.id]);
+      cache.flushMovies().catch(() => {});
       logger.warn('未找到海报，已标记跳过:', movie.title);
       stats.failed++;
       stats.processed++;
@@ -72,6 +74,7 @@ async function fetchOnePoster() {
     } else {
       await dbPool.query('UPDATE movies SET poster = ? WHERE id = ?', [posterUrl, movie.id]);
     }
+    cache.flushMovies().catch(() => {});
 
     stats.success++;
     stats.processed++;

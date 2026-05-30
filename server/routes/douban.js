@@ -45,9 +45,13 @@ router.get('/search', async (req, res) => {
   }
 });
 
+//在路由中添加参数验证
 router.get('/detail/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    if (!id) {
+      return res.json({ success: false, message: '请提供影片ID' });
+    }
 
     const [rows] = await pool.query(`SELECT * FROM movies WHERE id = ?`, [id]);
     if (rows.length > 0) {

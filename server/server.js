@@ -26,6 +26,7 @@ if (missingVars.length > 0) {
 const movieRoutes = require('./routes/movies');
 const doubanRoutes = require('./routes/douban');
 const tmdbRoutes = require('./routes/tmdb');
+const cache = require('./redis');
 const os = require('os');
 const backgroundTasks = require('./background_tasks');
 const proxyConfig = require('./proxy-config');
@@ -172,6 +173,7 @@ const HOST = '0.0.0.0';
 const localIP = getLocalIP();
 
 app.listen(PORT, HOST, () => {
+  cache.flushMovies().catch(() => {});
   console.log(`Movie Archive Server v${VERSION} running at:`);
   console.log(`  Local:   http://localhost:${PORT}`);
   console.log(`  Network: http://${localIP}:${PORT}`);
