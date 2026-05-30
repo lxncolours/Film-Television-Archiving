@@ -1,3 +1,7 @@
+if (!process.env.TZ) {
+  process.env.TZ = 'Asia/Shanghai';
+}
+
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 
 const levels = {
@@ -15,7 +19,13 @@ function log(level, ...args) {
   if (shouldLog(level)) {
     const d = new Date();
     const pad = n => String(n).padStart(2, '0');
-    const timestamp = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const y = d.getFullYear();
+    const mo = pad(d.getMonth() + 1);
+    const da = pad(d.getDate());
+    const h = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    const s = pad(d.getSeconds());
+    const timestamp = `${y}-${mo}-${da} ${h}:${mi}:${s}`;
     console[level === 'debug' ? 'log' : level](`[${timestamp}] [${level.toUpperCase()}]`, ...args);
   }
 }

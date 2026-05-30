@@ -10,7 +10,7 @@ router.get('/search', async (req, res) => {
       return res.json({ success: false, message: '请提供搜索关键词' });
     }
 
-    if (!tmdb.isConfigured()) {
+    if (!await tmdb.isConfigured()) {
       return res.json({ success: false, message: 'TMDB 未配置' });
     }
 

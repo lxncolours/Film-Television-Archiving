@@ -5,7 +5,7 @@ const cache = require('../redis');
 const sortConfig = require('../config/sortConfig');
 const proxyConfig = require('../proxy-config');
 
-const proxyAxios = proxyConfig.createAxiosInstance();
+const proxyAxios = () => proxyConfig.createAxiosInstance();
 
 function parseArrayParam(param) {
   if (!param) return [];
@@ -386,7 +386,7 @@ router.delete('/:id', async (req, res) => {
 
 async function downloadAndStorePoster(posterUrl) {
   try {
-    const resp = await proxyAxios.get(posterUrl, { responseType: 'arraybuffer' });
+    const resp = await proxyAxios().get(posterUrl, { responseType: 'arraybuffer' });
     const contentType = resp.headers['content-type'] || 'image/jpeg';
     return { data: Buffer.from(resp.data), mime: contentType };
   } catch (e) {
@@ -406,7 +406,7 @@ router.post('/fetch-poster/:id', async (req, res) => {
     let posterUrl = null;
     try {
       const tmdb = require('../tmdb');
-      if (tmdb.isConfigured()) {
+      if (await tmdb.isConfigured()) {
         posterUrl = await tmdb.findPosterByTitle(movie.title, movie.altTitle, movie.tmdbUrl, movie.type);
       }
     } catch (e) {

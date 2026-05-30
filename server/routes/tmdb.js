@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const tmdb = require('../tmdb');
 const logger = require('../utils/logger');
-const proxyConfig = require('../proxy-config');
 
 const COUNTRY_CN = {
   'United States': '美国',
@@ -81,9 +80,6 @@ function extractYear(seasonYear, detail) {
   return 0;
 }
 
-// Use proxy matching the system configuration (required for network access)
-const tmdbClient = proxyConfig.createAxiosInstance();
-
 function extractCountries(detail) {
   if (detail.production_countries) {
     return detail.production_countries.map(c => c.name).join(' / ');
@@ -100,22 +96,22 @@ function extractTitleInfo(detail) {
   return { seriesTitle, titleEn, tmdbRating };
 }
 
-router.get('/config', (req, res) => {
+router.get('/config', async (req, res) => {
   res.json({
     success: true,
     data: {
-      configured: tmdb.isConfigured(),
-      api_key_set: !!tmdb.getApiKey(),
+      configured: await tmdb.isConfigured(),
+      api_key_set: !!(await tmdb.getApiKey()),
     },
   });
 });
 
-router.post('/config', (req, res) => {
+router.post('/config', async (req, res) => {
   const { api_key } = req.body;
   if (!api_key) {
     return res.status(400).json({ success: false, message: '请提供 API Key' });
   }
-  tmdb.saveConfig(api_key);
+  await tmdb.saveConfig(api_key);
   res.json({ success: true, message: 'TMDB API Key 已保存' });
 });
 
@@ -126,7 +122,7 @@ router.post('/detail', async (req, res) => {
       return res.status(400).json({ success: false, message: '请提供片名或 TMDB ID' });
     }
 
-    const API_KEY = tmdb.getApiKey();
+    const API_KEY = await tmdb.getApiKey();
     if (!API_KEY) {
       return res.status(400).json({ success: false, message: 'TMDB API Key 未配置' });
     }

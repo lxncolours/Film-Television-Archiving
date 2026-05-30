@@ -33,7 +33,7 @@ async function fetchOnePoster() {
   let posterUrl = null;
 
   try {
-    if (!posterUrl && tmdb.isConfigured()) {
+    if (!posterUrl && await tmdb.isConfigured()) {
       try {
         posterUrl = await tmdb.findPosterByTitle(movie.title, movie.altTitle, movie.tmdbUrl, movie.type);
         if (posterUrl) console.log(`  ✅ TMDB 找到海报`);

@@ -96,13 +96,13 @@ app.post('/api/background/stop', (req, res) => {
   res.json({ success: true, message: '后台任务已停止' });
 });
 
-app.get('/api/proxy/config', (req, res) => {
-  res.json({ success: true, data: proxyConfig.getConfig() });
+app.get('/api/proxy/config', async (req, res) => {
+  res.json({ success: true, data: await proxyConfig.getConfig() });
 });
 
 app.put('/api/proxy/config', async (req, res) => {
+  const current = await proxyConfig.getConfig();
   const { enabled, host, port, protocol } = req.body;
-  const current = proxyConfig.getConfig();
   const newConfig = {
     enabled: enabled !== undefined ? enabled : current.enabled,
     host: host !== undefined ? host : current.host,
@@ -111,7 +111,7 @@ app.put('/api/proxy/config', async (req, res) => {
   };
   await proxyConfig.setConfig(newConfig);
   proxyAxios = proxyConfig.createAxiosInstance();
-  res.json({ success: true, data: proxyConfig.getConfig(), message: '代理配置已更新' });
+  res.json({ success: true, data: await proxyConfig.getConfig(), message: '代理配置已更新' });
 });
 
 app.get('/api/proxy/image', async (req, res) => {

@@ -1,9 +1,6 @@
-const fs = require('fs');
-const path = require('path');
 const logger = require('./utils/logger');
 const proxyConfig = require('./proxy-config');
 
-const CONFIG_PATH = path.join(__dirname, '..', 'tmdb_config.json');
 const POSTER_BASE = 'https://image.tmdb.org/t/p';
 
 let config = null;
@@ -47,40 +44,15 @@ function parseSeasonInfo(title) {
   return { base, season };
 }
 
-function loadConfig() {
-  if (config) return config;
-  try {
-    if (fs.existsSync(CONFIG_PATH)) {
-      config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-    }
-  } catch (e) {
-    // ignore
-  }
-  if (!config) config = {};
-  if (!config.api_key) config.api_key = process.env.TMDB_API_KEY || '';
-  return config;
-}
-
 async function init() {
   try {
-    const { getSetting, setSetting, SETTING_KEYS } = require('./utils/settings');
+    const { getSetting, SETTING_KEYS } = require('./utils/settings');
     const dbKey = await getSetting(SETTING_KEYS.TMDB_API_KEY);
-
     if (dbKey) {
       config = { api_key: dbKey };
-      return;
-    }
-
-    const fileKey = loadConfig().api_key;
-    if (fileKey) {
-      await setSetting(SETTING_KEYS.TMDB_API_KEY, fileKey);
-      config = { api_key: fileKey };
-      try { fs.unlinkSync(CONFIG_PATH); } catch {}
-      logger.info('TMDB API Key migrated from file to database');
     }
   } catch (e) {
-    logger.debug('TMDB init from DB failed, falling back to file/env:', e.message);
-    loadConfig();
+    logger.debug('TMDB init from DB failed:', e.message);
   }
 }
 
@@ -90,10 +62,7 @@ async function saveConfig(apiKey) {
     const { setSetting, SETTING_KEYS } = require('./utils/settings');
     await setSetting(SETTING_KEYS.TMDB_API_KEY, apiKey);
   } catch (e) {
-    logger.debug('TMDB save to DB failed, falling back to file:', e.message);
-    try {
-      fs.writeFileSync(CONFIG_PATH, JSON.stringify({ api_key: apiKey }, null, 2));
-    } catch {}
+    logger.debug('TMDB save to DB failed:', e.message);
   }
 }
 
@@ -103,17 +72,28 @@ function getClient() {
   return client;
 }
 
-function getApiKey() {
-  return loadConfig().api_key;
+async function getApiKey() {
+  if (config) return config.api_key;
+  try {
+    const { getSetting, SETTING_KEYS } = require('./utils/settings');
+    const dbKey = await getSetting(SETTING_KEYS.TMDB_API_KEY);
+    if (dbKey) {
+      config = { api_key: dbKey };
+      return dbKey;
+    }
+  } catch (e) {
+    logger.debug('getApiKey DB fallback failed:', e.message);
+  }
+  return '';
 }
 
-function isConfigured() {
-  return !!getApiKey();
+async function isConfigured() {
+  return !!(await getApiKey());
 }
 
 async function searchMulti(query, language = 'zh-CN') {
   const c = getClient();
-  const key = getApiKey();
+  const key = await getApiKey();
   if (!key) return [];
 
   try {
@@ -131,7 +111,7 @@ async function searchMulti(query, language = 'zh-CN') {
 
 async function getMovieDetails(tmdbId, language = 'zh-CN') {
   const c = getClient();
-  const key = getApiKey();
+  const key = await getApiKey();
   if (!key) return null;
 
   try {
@@ -147,7 +127,7 @@ async function getMovieDetails(tmdbId, language = 'zh-CN') {
 
 async function getTvDetails(tmdbId, language = 'zh-CN') {
   const c = getClient();
-  const key = getApiKey();
+  const key = await getApiKey();
   if (!key) return null;
 
   try {
@@ -163,7 +143,7 @@ async function getTvDetails(tmdbId, language = 'zh-CN') {
 
 async function getSeasonDetails(tmdbId, seasonNumber, language = 'zh-CN') {
   const c = getClient();
-  const key = getApiKey();
+  const key = await getApiKey();
   if (!key) return null;
 
   try {
@@ -189,7 +169,7 @@ function titleMatches(title, result) {
 
 async function findPoster(title, altTitle, type) {
   const c = getClient();
-  const key = getApiKey();
+  const key = await getApiKey();
   if (!key) return null;
 
   const seasonInfo = parseSeasonInfo(title);
@@ -205,7 +185,6 @@ async function findPoster(title, altTitle, type) {
     if (!q || allResults.length > 0) continue;
     const results = await searchMulti(q);
     allResults = results;
-    if (results.length === 0) continue;
   }
 
   const targetType = (type === '剧集' || type === '纪录片') ? 'tv' : 'movie';
@@ -268,7 +247,6 @@ async function findPoster(title, altTitle, type) {
 async function findPosterByTitle(title, altTitle, tmdbUrl, mediaType) {
   return await findPoster(title, altTitle, mediaType);
 }
-
 
 module.exports = {
   isConfigured,
