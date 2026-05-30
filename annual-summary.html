@@ -315,7 +315,7 @@
         function proxyImg(movie) {
             if (!movie) return '';
             if (movie.has_poster_data) return `/api/movies/poster/${movie.id}/image`;
-            if (!movie.poster) return '';
+            if (!movie.poster || movie.poster === '_not_found_') return '';
             if (movie.poster.includes('doubanio.com') || movie.poster.includes('douban.com')) {
                 return `/api/proxy/image?url=${encodeURIComponent(movie.poster)}`;
             }

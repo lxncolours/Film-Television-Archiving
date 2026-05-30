@@ -57,6 +57,7 @@ services:
       REDIS_PORT: "6379"
       PORT: "5280"
       TMDB_API_KEY: ${TMDB_API_KEY:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
     depends_on:
       mysql:
         condition: service_healthy

@@ -23,6 +23,7 @@ if (missingVars.length > 0) {
   process.exit(1);
 }
 
+const tmdb = require('./tmdb');
 const movieRoutes = require('./routes/movies');
 const doubanRoutes = require('./routes/douban');
 const tmdbRoutes = require('./routes/tmdb');
@@ -35,7 +36,7 @@ const app = express();
 const PORT = process.env.PORT || 5280;
 const VERSION = process.env.APP_VERSION || require('../package.json').version;
 
-const proxyAxios = proxyConfig.createAxiosInstance();
+let proxyAxios; // will be initialized in startServer
 
 const corsOptions = {
   origin: true,
@@ -99,7 +100,7 @@ app.get('/api/proxy/config', (req, res) => {
   res.json({ success: true, data: proxyConfig.getConfig() });
 });
 
-app.put('/api/proxy/config', (req, res) => {
+app.put('/api/proxy/config', async (req, res) => {
   const { enabled, host, port, protocol } = req.body;
   const current = proxyConfig.getConfig();
   const newConfig = {
@@ -108,7 +109,8 @@ app.put('/api/proxy/config', (req, res) => {
     port: port !== undefined ? port : current.port,
     protocol: protocol !== undefined ? protocol : current.protocol,
   };
-  proxyConfig.setConfig(newConfig);
+  await proxyConfig.setConfig(newConfig);
+  proxyAxios = proxyConfig.createAxiosInstance();
   res.json({ success: true, data: proxyConfig.getConfig(), message: '代理配置已更新' });
 });
 
@@ -172,12 +174,23 @@ app.use((err, req, res, next) => {
 const HOST = '0.0.0.0';
 const localIP = getLocalIP();
 
-app.listen(PORT, HOST, () => {
-  cache.flushMovies().catch(() => {});
-  console.log(`Movie Archive Server v${VERSION} running at:`);
-  console.log(`  Local:   http://localhost:${PORT}`);
-  console.log(`  Network: http://${localIP}:${PORT}`);
-  console.log('');
-  console.log('提示: 后台海报获取任务已禁用自动启动');
-  console.log('      如需启动，请调用 POST /api/background/start');
+async function startServer() {
+  await proxyConfig.init();
+  await tmdb.init();
+  proxyAxios = proxyConfig.createAxiosInstance();
+
+  app.listen(PORT, HOST, () => {
+    cache.flushMovies().catch(() => {});
+    console.log(`Movie Archive Server v${VERSION} running at:`);
+    console.log(`  Local:   http://localhost:${PORT}`);
+    console.log(`  Network: http://${localIP}:${PORT}`);
+    console.log('');
+    console.log('提示: 后台海报获取任务已禁用自动启动');
+    console.log('      如需启动，请调用 POST /api/background/start');
+  });
+}
+
+startServer().catch(err => {
+  logger.error('Failed to start server:', err);
+  process.exit(1);
 });

@@ -7,7 +7,7 @@ const CONFIG = {
   intervalMs: 30000,
 };
 
-const proxyAxios = proxyConfig.createAxiosInstance();
+const proxyAxios = () => proxyConfig.createAxiosInstance();
 
 let taskRunning = false;
 let taskInterval = null;
@@ -55,7 +55,7 @@ async function fetchOnePoster() {
     let imageData = null;
     let imageMime = '';
     try {
-      const imgResp = await proxyAxios.get(posterUrl, {
+      const imgResp = await proxyAxios().get(posterUrl, {
         responseType: 'arraybuffer',
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',

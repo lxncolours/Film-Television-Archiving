@@ -9,7 +9,6 @@ const POSTER_BASE = 'https://image.tmdb.org/t/p';
 let config = null;
 let client = null;
 
-// Chinese season patterns: 第一季(1), 第二季(2), 第三季(3), ... 第十季(10)
 const CN_NUM = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
 
 function parseSeasonInfo(title) {
@@ -17,7 +16,6 @@ function parseSeasonInfo(title) {
   let season = 0;
   let base = title;
 
-  // Pattern 1: "浴血黑帮 第一季", "权力的游戏 第三季"
   let m = title.match(/(.+?)[\s　]*第([一二三四五六七八九十]+)季$/);
   if (m) {
     base = m[1].trim();
@@ -25,7 +23,6 @@ function parseSeasonInfo(title) {
     return { base, season };
   }
 
-  // Pattern 2: "第1季", "第2季" at end
   m = title.match(/(.+?)[\s　]*第(\d+)季$/);
   if (m) {
     base = m[1].trim();
@@ -33,7 +30,6 @@ function parseSeasonInfo(title) {
     return { base, season };
   }
 
-  // Pattern 3: "Season 1", "Season 02"
   m = title.match(/(.+?)[\s\-_]*[Ss]eason[\s\-_]*(\d+)$/);
   if (m) {
     base = m[1].trim();
@@ -41,7 +37,6 @@ function parseSeasonInfo(title) {
     return { base, season };
   }
 
-  // Pattern 4: "S01", "S1", "s02"
   m = title.match(/(.+?)[\s\-_]*[Ss](\d+)$/);
   if (m && m[2].length <= 2) {
     base = m[1].trim();
@@ -66,14 +61,39 @@ function loadConfig() {
   return config;
 }
 
-function saveConfig(apiKey) {
-  const cfg = loadConfig();
-  cfg.api_key = apiKey;
-  config = cfg;
+async function init() {
   try {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+    const { getSetting, setSetting, SETTING_KEYS } = require('./utils/settings');
+    const dbKey = await getSetting(SETTING_KEYS.TMDB_API_KEY);
+
+    if (dbKey) {
+      config = { api_key: dbKey };
+      return;
+    }
+
+    const fileKey = loadConfig().api_key;
+    if (fileKey) {
+      await setSetting(SETTING_KEYS.TMDB_API_KEY, fileKey);
+      config = { api_key: fileKey };
+      try { fs.unlinkSync(CONFIG_PATH); } catch {}
+      logger.info('TMDB API Key migrated from file to database');
+    }
   } catch (e) {
-    // ignore
+    logger.debug('TMDB init from DB failed, falling back to file/env:', e.message);
+    loadConfig();
+  }
+}
+
+async function saveConfig(apiKey) {
+  config = { api_key: apiKey };
+  try {
+    const { setSetting, SETTING_KEYS } = require('./utils/settings');
+    await setSetting(SETTING_KEYS.TMDB_API_KEY, apiKey);
+  } catch (e) {
+    logger.debug('TMDB save to DB failed, falling back to file:', e.message);
+    try {
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify({ api_key: apiKey }, null, 2));
+    } catch {}
   }
 }
 
@@ -103,7 +123,7 @@ async function searchMulti(query, language = 'zh-CN') {
     return r.data.results || [];
   } catch (e) {
     if (e.response?.status === 401) {
-      throw new Error('TMDB API key invalid. Please set a valid key in tmdb_config.json');
+      throw new Error('TMDB API key invalid. Please set a valid key');
     }
     return [];
   }
@@ -172,11 +192,9 @@ async function findPoster(title, altTitle, type) {
   const key = getApiKey();
   if (!key) return null;
 
-  // Parse season info from title
   const seasonInfo = parseSeasonInfo(title);
   const hasSeason = seasonInfo.season > 0;
 
-  // Search queries: try altTitle first, then base name (stripped of season), then full title
   const queries = [];
   if (altTitle) queries.push(altTitle);
   if (hasSeason && seasonInfo.base) queries.push(seasonInfo.base);
@@ -192,7 +210,6 @@ async function findPoster(title, altTitle, type) {
 
   const targetType = (type === '剧集' || type === '纪录片') ? 'tv' : 'movie';
 
-  // Build match candidates: prefer exact base name match, then first result
   let bestMatch = null;
 
   for (const r of allResults) {
@@ -213,14 +230,12 @@ async function findPoster(title, altTitle, type) {
 
   let posterPath = bestMatch.poster_path;
 
-  // If this is a TV series with a season number, try to get the season-specific poster
   if (hasSeason && (targetType === 'tv' || bestMatch.media_type === 'tv')) {
     try {
       const seasonData = await getSeasonDetails(bestMatch.id, seasonInfo.season);
       if (seasonData && seasonData.poster_path) {
         posterPath = seasonData.poster_path;
       } else if (!posterPath) {
-        // Fallback: get series details for poster
         const detail = await getTvDetails(bestMatch.id);
         if (detail) posterPath = detail.poster_path;
       }
@@ -228,7 +243,6 @@ async function findPoster(title, altTitle, type) {
       // ignore
     }
   } else if (!posterPath && bestMatch.id) {
-    // No season info, try detail endpoint
     try {
       if (targetType === 'movie' || bestMatch.media_type === 'movie') {
         const detail = await getMovieDetails(bestMatch.id);
@@ -268,4 +282,5 @@ module.exports = {
   getTvDetails,
   getSeasonDetails,
   parseSeasonInfo,
+  init
 };
