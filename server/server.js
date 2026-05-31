@@ -182,6 +182,8 @@ app.use((err, req, res, next) => {
 const HOST = '0.0.0.0';
 const localIP = getLocalIP();
 
+console.log(`Movie Archive Server v${VERSION} starting...`);
+
 async function startServer() {
   await proxyConfig.init();
   await tmdb.init();
