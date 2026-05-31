@@ -195,7 +195,7 @@ router.get('/annual/:year', async (req, res) => {
 
     // All movies for the year
     const [rows] = await pool.query(
-      "SELECT id, title, type, platform, rating, poster, poster_mime, tmdbUrl, (poster_data IS NOT NULL AND poster_data != '') as has_poster_data FROM movies WHERE LEFT(archiveDate, 4) = ? ORDER BY archiveDate DESC",
+      "SELECT id, title, type, platform, rating, poster, poster_mime, tmdbUrl, (poster_data IS NOT NULL AND poster_data != '') as has_poster_data FROM movies WHERE LEFT(archiveDate, 4) = ? ORDER BY archiveDate DESC, id DESC",
       [year]
     );
 

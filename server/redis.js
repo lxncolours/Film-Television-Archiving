@@ -31,15 +31,12 @@ async function scanKeys(pattern) {
   const c = await getClient();
   if (!c) return [];
   const keys = [];
-  let cursor = 0;
   try {
-    do {
-      const result = await c.scan(cursor, { MATCH: pattern, COUNT: 100 });
-      cursor = result.cursor;
-      keys.push(...result.keys);
-    } while (cursor !== 0);
+    for await (const key of c.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+      keys.push(key);
+    }
   } catch (e) {
-    logger.debug('Redis SCAN error:', e.message);
+    logger.error(`[Redis] SCAN error: ${e.message}`);
   }
   return keys;
 }
@@ -73,13 +70,28 @@ async function del(pattern) {
       const c = await getClient();
       if (c) await c.del(keys);
     }
+    if (keys.length > 0) {
+      logger.info(`[Redis] DEL ${keys.length} keys: ${keys.join(', ')}`);
+    }
   } catch (e) {
-    logger.debug('Redis del error:', e.message);
+    logger.error(`[Redis] DEL error: ${e.message}`);
   }
 }
 
 async function flushMovies() {
-  await del('movies:*');
+  logger.info('[Redis] Flushing movie cache...');
+  const keys = await scanKeys('movies:*');
+  if (keys.length > 0) {
+    const c = await getClient();
+    if (c) {
+      for (const key of keys) {
+        await c.del(key);
+      }
+    }
+    logger.info(`[Redis] Flushed ${keys.length} cache keys`);
+  } else {
+    logger.info('[Redis] No cached keys to flush');
+  }
 }
 
 async function updateMovieInCache(movieId, updatedData) {

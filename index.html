@@ -2348,7 +2348,7 @@
             }
             const data = await apiFetch(`${API_BASE}/movies/${id}`, { method: 'DELETE' });
             if (data.success) {
-                await fetchMovies(); fetchStats(); applyFilters(false, true); closeModal();
+                await fetchMovies(); renderMovies(); fetchStats(); closeModal();
                 showNotification(`已删除《${movie.title}》`, 'success');
             } else { showNotification('删除失败', 'error'); }
         }
@@ -2383,7 +2383,8 @@
                 }
                 console.log('API Response:', res);
                 if (res.success) {
-                    await fetchMovies(); fetchStats(); applyFilters(false, true); closeAddModal();
+                    pagination.page = 1;
+                    await fetchMovies(); renderMovies(); fetchStats(); closeAddModal();
                     showNotification(res.message, 'success');
                 } else { showNotification(res.message || '操作失败', 'error'); }
             } catch (e) { 
@@ -2449,22 +2450,18 @@
                 }, 300);
             });
             document.addEventListener('click', e => { if (!input.contains(e.target) && !div.contains(e.target)) div.classList.remove('show'); });
-
-            // Make lastSearchQuery available in selectMovie
-            window._lastSearchQuery = () => lastSearchQuery;
         }
 
         async function selectMovie(id, title, mediaType) {
             document.getElementById('searchSuggestions').classList.remove('show');
             showLoading('正在获取影片详情...');
             try {
-                const originalTitle = window._lastSearchQuery ? window._lastSearchQuery() : title;
-                document.getElementById('title').value = originalTitle;
+                document.getElementById('title').value = title;
 
                 const tmdbResp = await apiFetch(`${API_BASE}/tmdb/detail`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title: originalTitle, tmdb_id: id, media_type: mediaType }),
+                    body: JSON.stringify({ title, tmdb_id: id, media_type: mediaType }),
                 });
 
                 if (tmdbResp.success && tmdbResp.data) {
@@ -2475,6 +2472,7 @@
                     document.getElementById('poster').value = d.poster || '';
                     if (d.genres && d.genres.length > 0) document.getElementById('category').value = d.genres.join(', ');
                     if (!editingId && d.rating) document.getElementById('rating').value = d.rating;
+                    if (!editingId && d.type) document.getElementById('type').value = d.type;
                     if (d.tmdbUrl) document.getElementById('tmdbUrl').value = d.tmdbUrl;
                 }
 

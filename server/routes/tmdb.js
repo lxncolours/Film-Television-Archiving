@@ -177,6 +177,8 @@ router.post('/detail', async (req, res) => {
         const countries_cn = translateCountries(countries);
         const genres = detail.genres ? detail.genres.map(g => g.name) : [];
         const { seriesTitle, titleEn, tmdbRating } = extractTitleInfo(detail);
+        const typeMap = { 'movie': '电影', 'tv': '剧集' };
+        const detectedType = genres.some(g => g === 'Documentary' || g === '纪录片') ? '纪录片' : (typeMap[media_type] || '电影');
 
         const tmdbUrl = `https://www.themoviedb.org/${media_type}/${tmdb_id}`;
         
@@ -188,6 +190,7 @@ router.post('/detail', async (req, res) => {
             year: isNaN(year) ? 0 : year,
             countries: countries_cn,
             genres,
+            type: detectedType,
             poster: posterUrl,
             rating: tmdbRating,
             tmdbUrl,
@@ -262,6 +265,8 @@ router.post('/detail', async (req, res) => {
     const countries_cn = translateCountries(countries);
     const genres = d.genres ? d.genres.map(g => g.name) : [];
     const { seriesTitle, titleEn, tmdbRating } = extractTitleInfo(d);
+    const typeMap = { 'movie': '电影', 'tv': '剧集' };
+    const detectedType = genres.some(g => g === 'Documentary' || g === '纪录片') ? '纪录片' : (typeMap[best.media_type] || '电影');
 
     const tmdbUrl = `https://www.themoviedb.org/${best.media_type}/${best.id}`;
 
@@ -273,6 +278,7 @@ router.post('/detail', async (req, res) => {
         year: isNaN(year) ? 0 : year,
         countries: countries_cn,
         genres,
+        type: detectedType,
         poster: posterUrl,
         rating: tmdbRating,
         tmdbUrl,
