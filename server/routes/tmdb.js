@@ -111,8 +111,16 @@ router.post('/config', async (req, res) => {
   if (!api_key) {
     return res.status(400).json({ success: false, message: '请提供 API Key' });
   }
-  await tmdb.saveConfig(api_key);
-  res.json({ success: true, message: 'TMDB API Key 已保存' });
+  logger.info(`[TMDB Route] POST /config - api_key length: ${api_key.length}`);
+  try {
+    await tmdb.saveConfig(api_key);
+    logger.info('[TMDB Route] saveConfig succeeded, sending success response');
+    res.json({ success: true, message: 'TMDB API Key 已保存' });
+  } catch (e) {
+    logger.error(`[TMDB Route] saveConfig failed: ${e.message}`);
+    logger.error(`[TMDB Route] Stack: ${e.stack}`);
+    res.status(500).json({ success: false, message: '保存失败: ' + e.message });
+  }
 });
 
 router.post('/detail', async (req, res) => {

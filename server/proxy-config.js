@@ -52,13 +52,18 @@ function loadConfigSync() {
 }
 
 async function setConfig(config) {
+  logger.info(`[Proxy] setConfig called with enabled: ${config.enabled}, host: ${config.host}`);
   proxyConfigCache = { ...config };
-  try {
-    const { setSetting, SETTING_KEYS } = require('./utils/settings');
-    await setSetting(SETTING_KEYS.PROXY_CONFIG, JSON.stringify(proxyConfigCache));
-  } catch (e) {
-    logger.debug('Proxy save to DB failed:', e.message);
+  const { setSetting, SETTING_KEYS } = require('./utils/settings');
+  const configJson = JSON.stringify(proxyConfigCache);
+  logger.info(`[Proxy] Calling setSetting with key: ${SETTING_KEYS.PROXY_CONFIG}, config length: ${configJson.length}`);
+  const success = await setSetting(SETTING_KEYS.PROXY_CONFIG, configJson);
+  logger.info(`[Proxy] setSetting returned: ${success}`);
+  if (!success) {
+    logger.error('[Proxy] setSetting returned false, throwing error');
+    throw new Error('Failed to save proxy config to database');
   }
+  logger.info('[Proxy] setConfig completed successfully');
 }
 
 async function getConfig() {

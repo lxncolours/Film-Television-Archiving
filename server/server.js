@@ -109,9 +109,17 @@ app.put('/api/proxy/config', async (req, res) => {
     port: port !== undefined ? port : current.port,
     protocol: protocol !== undefined ? protocol : current.protocol,
   };
-  await proxyConfig.setConfig(newConfig);
-  proxyAxios = proxyConfig.createAxiosInstance();
-  res.json({ success: true, data: await proxyConfig.getConfig(), message: '代理配置已更新' });
+  logger.info(`[Proxy Route] PUT /config - newConfig: ${JSON.stringify(newConfig)}`);
+  try {
+    await proxyConfig.setConfig(newConfig);
+    proxyAxios = proxyConfig.createAxiosInstance();
+    logger.info('[Proxy Route] setConfig succeeded, sending success response');
+    res.json({ success: true, data: await proxyConfig.getConfig(), message: '代理配置已更新' });
+  } catch (e) {
+    logger.error(`[Proxy Route] setConfig failed: ${e.message}`);
+    logger.error(`[Proxy Route] Stack: ${e.stack}`);
+    res.status(500).json({ success: false, message: '保存失败: ' + e.message });
+  }
 });
 
 app.get('/api/proxy/image', async (req, res) => {

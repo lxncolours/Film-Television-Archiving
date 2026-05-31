@@ -57,13 +57,17 @@ async function init() {
 }
 
 async function saveConfig(apiKey) {
+  logger.info(`[TMDB] saveConfig called with key length: ${apiKey ? apiKey.length : 0}`);
   config = { api_key: apiKey };
-  try {
-    const { setSetting, SETTING_KEYS } = require('./utils/settings');
-    await setSetting(SETTING_KEYS.TMDB_API_KEY, apiKey);
-  } catch (e) {
-    logger.debug('TMDB save to DB failed:', e.message);
+  const { setSetting, SETTING_KEYS } = require('./utils/settings');
+  logger.info(`[TMDB] Calling setSetting with key: ${SETTING_KEYS.TMDB_API_KEY}`);
+  const success = await setSetting(SETTING_KEYS.TMDB_API_KEY, apiKey);
+  logger.info(`[TMDB] setSetting returned: ${success}`);
+  if (!success) {
+    logger.error('[TMDB] setSetting returned false, throwing error');
+    throw new Error('Failed to save TMDB API Key to database');
   }
+  logger.info('[TMDB] saveConfig completed successfully');
 }
 
 function getClient() {

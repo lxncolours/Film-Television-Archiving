@@ -38,16 +38,23 @@ async function getSetting(key) {
 }
 
 async function setSetting(key, value) {
+  logger.info(`[Settings] Setting key: ${key}, value length: ${value ? value.length : 0}`);
   try {
     const encrypted = encrypt(value);
-    await pool.query(
+    logger.info(`[Settings] Encrypted value length: ${encrypted ? encrypted.length : 0}`);
+    
+    const result = await pool.query(
       'INSERT INTO settings (`key`, `value`, updatedAt) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE `value` = ?, updatedAt = NOW()',
       [key, encrypted, encrypted]
     );
-    cache.set(cacheKey(key), value, CACHE_TTL).catch(() => {});
+    logger.info(`[Settings] Database query result: ${JSON.stringify(result)}`);
+    
+    cache.set(cacheKey(key), value, CACHE_TTL).catch(e => logger.error(`[Settings] Cache set error: ${e.message}`));
+    logger.info(`[Settings] Cache updated for key: ${key}`);
     return true;
   } catch (e) {
-    logger.debug('Settings set error:', e.message);
+    logger.error(`[Settings] Database error: ${e.message}`);
+    logger.error(`[Settings] Stack: ${e.stack}`);
     return false;
   }
 }
