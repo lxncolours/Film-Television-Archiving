@@ -4,6 +4,7 @@ const pool = require('../db');
 const tmdb = require('../tmdb');
 
 router.get('/search', async (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   try {
     const { q } = req.query;
     if (!q) {

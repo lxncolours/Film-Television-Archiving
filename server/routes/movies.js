@@ -147,6 +147,7 @@ async function ensureCountryExists(countryName) {
 }
 
 router.get('/stats', async (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   try {
     const [total] = await pool.query('SELECT COUNT(*) as total FROM movies');
     const [avg] = await pool.query('SELECT ROUND(AVG(rating),1) as avg FROM movies WHERE rating > 0');
@@ -172,6 +173,7 @@ router.get('/stats', async (req, res) => {
 });
 
 router.get('/annual/:year', async (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   try {
     const { year } = req.params;
 
