@@ -50,9 +50,12 @@ async function init() {
     const dbKey = await getSetting(SETTING_KEYS.TMDB_API_KEY);
     if (dbKey) {
       config = { api_key: dbKey };
+      logger.info(`[TMDB] Loaded API key from database (length: ${dbKey.length})`);
+    } else {
+      logger.info('[TMDB] No API key found in database');
     }
   } catch (e) {
-    logger.debug('TMDB init from DB failed:', e.message);
+    logger.warn(`[TMDB] Failed to load API key from database: ${e.message}`);
   }
 }
 
@@ -98,16 +101,30 @@ async function isConfigured() {
 async function searchMulti(query, language = 'zh-CN') {
   const c = getClient();
   const key = await getApiKey();
-  if (!key) return [];
+  if (!key) {
+    logger.warn('[TMDB] searchMulti skipped: no API key');
+    return [];
+  }
+
+  const url = 'https://api.themoviedb.org/3/search/multi';
+  logger.info(`[TMDB] Calling TMDB API: GET ${url}?query=${query}&language=${language}`);
 
   try {
-    const r = await c.get('https://api.themoviedb.org/3/search/multi', {
+    const r = await c.get(url, {
       params: { api_key: key, query, language, page: 1 },
     });
+    logger.info(`[TMDB] TMDB API response status: ${r.status}, results count: ${r.data?.results?.length || 0}`);
     return r.data.results || [];
   } catch (e) {
-    if (e.response?.status === 401) {
-      throw new Error('TMDB API key invalid. Please set a valid key');
+    if (e.response) {
+      logger.error(`[TMDB] TMDB API error: status=${e.response.status}, data=${JSON.stringify(e.response.data)}`);
+      if (e.response.status === 401) {
+        throw new Error('TMDB API key invalid. Please set a valid key');
+      }
+    } else if (e.request) {
+      logger.error(`[TMDB] TMDB API no response (network/proxy error): ${e.message}`);
+    } else {
+      logger.error(`[TMDB] TMDB API request setup error: ${e.message}`);
     }
     return [];
   }
@@ -118,13 +135,17 @@ async function getMovieDetails(tmdbId, language = 'zh-CN') {
   const key = await getApiKey();
   if (!key) return null;
 
+  const url = `https://api.themoviedb.org/3/movie/${tmdbId}`;
+  logger.info(`[TMDB] Calling TMDB API: GET ${url}?language=${language}`);
+
   try {
-    const r = await c.get(`https://api.themoviedb.org/3/movie/${tmdbId}`, {
+    const r = await c.get(url, {
       params: { api_key: key, language },
     });
+    logger.info(`[TMDB] Movie details response status: ${r.status}`);
     return r.data;
   } catch (e) {
-    logger.error('Failed to fetch movie details:', e.message);
+    logger.error(`[TMDB] Failed to fetch movie details: ${e.message}`);
     return null;
   }
 }
@@ -134,13 +155,17 @@ async function getTvDetails(tmdbId, language = 'zh-CN') {
   const key = await getApiKey();
   if (!key) return null;
 
+  const url = `https://api.themoviedb.org/3/tv/${tmdbId}`;
+  logger.info(`[TMDB] Calling TMDB API: GET ${url}?language=${language}`);
+
   try {
-    const r = await c.get(`https://api.themoviedb.org/3/tv/${tmdbId}`, {
+    const r = await c.get(url, {
       params: { api_key: key, language },
     });
+    logger.info(`[TMDB] TV details response status: ${r.status}`);
     return r.data;
   } catch (e) {
-    logger.error('Failed to fetch TV details:', e.message);
+    logger.error(`[TMDB] Failed to fetch TV details: ${e.message}`);
     return null;
   }
 }
@@ -150,13 +175,17 @@ async function getSeasonDetails(tmdbId, seasonNumber, language = 'zh-CN') {
   const key = await getApiKey();
   if (!key) return null;
 
+  const url = `https://api.themoviedb.org/3/tv/${tmdbId}/season/${seasonNumber}`;
+  logger.info(`[TMDB] Calling TMDB API: GET ${url}?language=${language}`);
+
   try {
-    const r = await c.get(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${seasonNumber}`, {
+    const r = await c.get(url, {
       params: { api_key: key, language },
     });
+    logger.info(`[TMDB] Season details response status: ${r.status}`);
     return r.data;
   } catch (e) {
-    logger.error('Failed to fetch season details:', e.message);
+    logger.error(`[TMDB] Failed to fetch season details: ${e.message}`);
     return null;
   }
 }
