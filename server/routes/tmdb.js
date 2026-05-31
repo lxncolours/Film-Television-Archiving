@@ -97,11 +97,14 @@ function extractTitleInfo(detail) {
 }
 
 router.get('/config', async (req, res) => {
+  const configured = await tmdb.isConfigured();
+  const api_key_set = !!(await tmdb.getApiKey());
+  logger.info(`[TMDB Route] GET /config - configured: ${configured}, api_key_set: ${api_key_set}`);
   res.json({
     success: true,
     data: {
-      configured: await tmdb.isConfigured(),
-      api_key_set: !!(await tmdb.getApiKey()),
+      configured,
+      api_key_set,
     },
   });
 });
@@ -126,6 +129,7 @@ router.post('/config', async (req, res) => {
 router.post('/detail', async (req, res) => {
   try {
     const { title, tmdb_id, media_type } = req.body;
+    logger.info(`[TMDB Route] POST /detail - title: "${title}", tmdb_id: ${tmdb_id}, media_type: ${media_type}`);
     if (!title && !tmdb_id) {
       return res.status(400).json({ success: false, message: '请提供片名或 TMDB ID' });
     }
@@ -138,19 +142,18 @@ router.post('/detail', async (req, res) => {
     const si = tmdb.parseSeasonInfo(title || '');
     logger.debug('Parsed season info:', si);
 
-    // If tmdb_id is provided, fetch directly by ID
     if (tmdb_id && media_type) {
       let detail;
       try {
+        logger.info(`[TMDB Route] POST /detail - 通过ID获取详情: tmdb_id=${tmdb_id}, media_type=${media_type}`);
         detail = media_type === 'tv' ? await tmdb.getTvDetails(tmdb_id) : await tmdb.getMovieDetails(tmdb_id);
       } catch (e) { 
-        logger.error('Error fetching detail by ID:', e.message);
+        logger.error(`[TMDB Route] POST /detail - 通过ID获取详情失败: ${e.message}`);
       }
       if (detail) {
         let posterPath = detail.poster_path;
         let seasonYear = null;
 
-        // If this is a TV series with a season number from title, try to get season-specific info
         if (media_type === 'tv' && si.season > 0) {
           try {
             logger.debug(`Fetching season ${si.season} for TV ${tmdb_id}`);
@@ -164,7 +167,7 @@ router.post('/detail', async (req, res) => {
               logger.debug('Season year:', seasonYear);
             }
           } catch (e) { 
-            logger.error('Error fetching season detail:', e.message);
+            logger.error(`[TMDB Route] POST /detail - 获取季详情失败: ${e.message}`);
           }
         }
 
@@ -198,12 +201,13 @@ router.post('/detail', async (req, res) => {
 
     let results;
     try {
+      logger.info(`[TMDB Route] POST /detail - TMDB搜索: "${searchQ}"`);
       results = await tmdb.searchMulti(searchQ);
+      logger.info(`[TMDB Route] POST /detail - 搜索结果数: ${results.length}`);
     } catch (e) {
-      logger.error('Search error:', e.message);
+      logger.error(`[TMDB Route] POST /detail - 搜索失败: ${e.message}`);
       return res.status(502).json({ success: false, message: 'TMDB 请求失败: ' + e.message });
     }
-    logger.debug('Search results count:', results.length);
     if (results.length === 0) {
       return res.json({ success: false, message: 'TMDB 未找到该影片' });
     }
@@ -225,9 +229,10 @@ router.post('/detail', async (req, res) => {
 
     let detail;
     try {
+      logger.info(`[TMDB Route] POST /detail - 获取最佳匹配详情: id=${best.id}, media_type=${best.media_type}`);
       detail = isTv ? await tmdb.getTvDetails(best.id) : await tmdb.getMovieDetails(best.id);
     } catch (e) { 
-      logger.error('Detail fetch error:', e.message);
+      logger.error(`[TMDB Route] POST /detail - 获取详情失败: ${e.message}`);
     }
 
     const d = detail || best;
@@ -247,7 +252,7 @@ router.post('/detail', async (req, res) => {
           logger.debug('Season year from API:', seasonYear);
         }
       } catch (e) { 
-        logger.error('Season fetch error:', e.message);
+        logger.error(`[TMDB Route] POST /detail - 获取季详情失败: ${e.message}`);
       }
     }
 
@@ -274,7 +279,7 @@ router.post('/detail', async (req, res) => {
       },
     });
   } catch (err) {
-    logger.error('TMDB detail fetch failed:', err.message);
+    logger.error(`[TMDB Route] POST /detail - 获取详情失败: ${err.message}`);
     res.status(500).json({ success: false, message: err.message });
   }
 });

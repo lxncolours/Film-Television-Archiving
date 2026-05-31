@@ -73,7 +73,8 @@ app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
     const ms = Date.now() - start;
-    logger.info(`${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms`);
+    const ip = req.headers['x-forwarded-for'] || req.ip;
+    logger.info(`${ip} ${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms`);
   });
   next();
 });
@@ -81,6 +82,7 @@ app.use((req, res, next) => {
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 app.get('/api/health', (req, res) => {
+  logger.info(`[Health] entry - ${req.ip}`);
   res.json({ status: 'ok', version: VERSION });
 });
 
@@ -93,20 +95,26 @@ app.get('/api/background/status', (req, res) => {
 });
 
 app.post('/api/background/start', (req, res) => {
+  logger.info(`[Background] start - entry`);
   backgroundTasks.start();
   res.json({ success: true, message: '后台任务已启动' });
 });
 
 app.post('/api/background/stop', (req, res) => {
+  logger.info(`[Background] stop - entry`);
   backgroundTasks.stop();
   res.json({ success: true, message: '后台任务已停止' });
 });
 
 app.get('/api/proxy/config', async (req, res) => {
-  res.json({ success: true, data: await proxyConfig.getConfig() });
+  logger.info(`[Proxy] GET /config - entry`);
+  const data = await proxyConfig.getConfig();
+  logger.info(`[Proxy] GET /config - exit`);
+  res.json({ success: true, data });
 });
 
 app.put('/api/proxy/config', async (req, res) => {
+  logger.info(`[Proxy] PUT /config - entry`);
   const current = await proxyConfig.getConfig();
   const { enabled, host, port, protocol } = req.body;
   const newConfig = {
@@ -129,8 +137,9 @@ app.put('/api/proxy/config', async (req, res) => {
 });
 
 app.get('/api/proxy/image', async (req, res) => {
+  const { url } = req.query;
+  logger.info(`[Proxy] GET /image - entry url: ${url}`);
   try {
-    const { url } = req.query;
     if (!url) return res.status(400).send('Missing url');
     const response = await proxyAxios.get(decodeURIComponent(url), {
       responseType: 'stream',
@@ -144,11 +153,13 @@ app.get('/api/proxy/image', async (req, res) => {
     res.set('Cache-Control', 'public, max-age=86400');
     response.data.pipe(res);
   } catch (e) {
+    logger.error(`[Proxy] GET /image - error: ${e.message}`);
     res.status(500).send('Proxy error');
   }
 });
 
 app.get('/api/network/info', (req, res) => {
+  logger.info(`[Network] info - entry`);
   const localIP = getLocalIP();
   res.json({
     success: true,

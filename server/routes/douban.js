@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const tmdb = require('../tmdb');
+const logger = require('../utils/logger');
 
 router.get('/search', async (req, res) => {
   res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -18,15 +19,15 @@ router.get('/search', async (req, res) => {
     const si = tmdb.parseSeasonInfo(q);
     let searchQ = si.season > 0 && si.base ? si.base : q;
 
-    console.log(`搜索查询: "${q}", 解析季数: ${si.season}, 搜索关键词: "${searchQ}"`);
+    logger.info(`[Douban Route] GET /search - 查询关键词: "${q}", 解析季数: ${si.season}, 搜索关键词: "${searchQ}"`);
 
     let results = await tmdb.searchMulti(searchQ);
-    console.log(`TMDB搜索结果数量(使用base): ${results.length}`);
+    logger.info(`[Douban Route] GET /search - TMDB搜索结果数量(使用base): ${results.length}`);
 
     if (si.season > 0 && si.base && results.length === 0) {
-      console.log(`使用base搜索无结果，尝试使用原始查询 "${q}"`);
+      logger.info(`[Douban Route] GET /search - 使用base搜索无结果，尝试使用原始查询 "${q}"`);
       results = await tmdb.searchMulti(q);
-      console.log(`TMDB搜索结果数量(使用原始): ${results.length}`);
+      logger.info(`[Douban Route] GET /search - TMDB搜索结果数量(使用原始): ${results.length}`);
     }
 
     const data = results
@@ -45,7 +46,7 @@ router.get('/search', async (req, res) => {
 
     res.json({ success: true, data });
   } catch (error) {
-    console.error('搜索API错误:', error.message);
+    logger.error(`[Douban Route] GET /search - 搜索API错误: ${error.message}`);
     res.json({ success: false, message: '搜索失败', error: error.message });
   }
 });
@@ -57,9 +58,12 @@ router.get('/detail/:id', async (req, res) => {
       return res.json({ success: false, message: '请提供影片ID' });
     }
 
+    logger.info(`[Douban Route] GET /detail/:id - 查询ID: ${id}`);
+
     const [rows] = await pool.query(`SELECT * FROM movies WHERE id = ?`, [id]);
     if (rows.length > 0) {
       const movie = rows[0];
+      logger.info(`[Douban Route] GET /detail/:id - 找到影片: ${movie.title}, ID: ${id}`);
       return res.json({
         success: true,
         data: {
@@ -77,9 +81,10 @@ router.get('/detail/:id', async (req, res) => {
       });
     }
 
+    logger.info(`[Douban Route] GET /detail/:id - 未找到影片, ID: ${id}`);
     res.json({ success: false, message: '未找到影片' });
   } catch (error) {
-    console.error('详情API错误:', error.message);
+    logger.error(`[Douban Route] GET /detail/:id - 详情API错误: ${error.message}`);
     res.json({ success: false, message: '获取详情失败', error: error.message });
   }
 });

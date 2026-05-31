@@ -2,6 +2,7 @@ const tmdb = require('./tmdb');
 const dbPool = require('./db');
 const cache = require('./redis');
 const proxyConfig = require('./proxy-config');
+const logger = require('./utils/logger');
 
 const CONFIG = {
   intervalMs: 30000,
@@ -23,12 +24,12 @@ async function fetchOnePoster() {
   );
 
   if (rows.length === 0) {
-    console.log('[Background] 没有需要获取海报的电影');
+    logger.info('[Background] 没有需要获取海报的电影');
     return false;
   }
 
   const movie = rows[0];
-  console.log(`[Background] 正在获取: ${movie.title}`);
+  logger.info(`[Background] 正在获取: ${movie.title} (id=${movie.id})`);
 
   let posterUrl = null;
 
@@ -36,16 +37,16 @@ async function fetchOnePoster() {
     if (!posterUrl && await tmdb.isConfigured()) {
       try {
         posterUrl = await tmdb.findPosterByTitle(movie.title, movie.altTitle, movie.tmdbUrl, movie.type);
-        if (posterUrl) console.log(`  ✅ TMDB 找到海报`);
+        if (posterUrl) logger.info(`[Background] TMDB 找到海报: ${posterUrl}`);
       } catch (e) {
-        console.log(`  ⚠️ TMDB 失败: ${e.message}`);
+        logger.warn(`[Background] TMDB 失败: ${e.message}`);
       }
     }
 
     if (!posterUrl) {
       await dbPool.query("UPDATE movies SET poster = '_not_found_' WHERE id = ?", [movie.id]);
       cache.flushMovies().catch(() => {});
-      console.log(`  ❌ ${movie.title} 未找到海报，已标记跳过`);
+      logger.warn(`[Background] ${movie.title} 未找到海报，已标记跳过`);
       stats.failed++;
       stats.processed++;
       stats.lastRun = new Date();
@@ -64,8 +65,9 @@ async function fetchOnePoster() {
       });
       imageData = Buffer.from(imgResp.data);
       imageMime = imgResp.headers['content-type'] || 'image/jpeg';
+      logger.info(`[Background] 图片下载成功: ${imageMime}, ${imageData.length} bytes`);
     } catch (e) {
-      console.log(`  ⚠️ 图片下载失败: ${e.message}`);
+      logger.warn(`[Background] 图片下载失败: ${e.message}`);
     }
 
     if (imageData) {
@@ -73,10 +75,10 @@ async function fetchOnePoster() {
         'UPDATE movies SET poster = ?, poster_data = ?, poster_mime = ? WHERE id = ?',
         [posterUrl, imageData, imageMime, movie.id]
       );
-      console.log(`  ✅ ${movie.title} 海报已保存（含图片）`);
+      logger.info(`[Background] ${movie.title} 海报已保存（含图片数据）`);
     } else {
       await dbPool.query('UPDATE movies SET poster = ? WHERE id = ?', [posterUrl, movie.id]);
-      console.log(`  ✅ ${movie.title} 海报URL已保存`);
+      logger.info(`[Background] ${movie.title} 海报URL已保存`);
     }
     cache.flushMovies().catch(() => {});
 
@@ -86,7 +88,7 @@ async function fetchOnePoster() {
     return true;
 
   } catch (err) {
-    console.log(`  ❌ ${movie.title} 错误: ${err.message}`);
+    logger.error(`[Background] ${movie.title} 错误: ${err.message}`);
     stats.failed++;
     stats.lastRun = new Date();
     return false;
@@ -95,7 +97,7 @@ async function fetchOnePoster() {
 
 async function runTask() {
   if (taskRunning) {
-    console.log('[Background] 上一次任务仍在执行中，跳过此次');
+    logger.info('[Background] 上一次任务仍在执行中，跳过此次');
     return;
   }
 
@@ -103,7 +105,7 @@ async function runTask() {
   try {
     await fetchOnePoster();
   } catch (err) {
-    console.error('[Background] 任务异常:', err);
+    logger.error('[Background] 任务异常:', err.message);
   } finally {
     taskRunning = false;
   }
@@ -111,11 +113,11 @@ async function runTask() {
 
 function start() {
   if (taskInterval) {
-    console.log('[Background] 任务已在运行中');
+    logger.info('[Background] 任务已在运行中');
     return;
   }
 
-  console.log(`[Background] 启动后台任务，每 ${CONFIG.intervalMs / 1000} 秒获取一部海报`);
+  logger.info(`[Background] 启动后台任务，每 ${CONFIG.intervalMs / 1000} 秒获取一部海报`);
   
   runTask();
   taskInterval = setInterval(runTask, CONFIG.intervalMs);
@@ -125,7 +127,7 @@ function stop() {
   if (taskInterval) {
     clearInterval(taskInterval);
     taskInterval = null;
-    console.log('[Background] 后台任务已停止');
+    logger.info('[Background] 后台任务已停止');
   }
 }
 

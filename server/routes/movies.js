@@ -4,6 +4,7 @@ const pool = require('../db');
 const cache = require('../redis');
 const sortConfig = require('../config/sortConfig');
 const proxyConfig = require('../proxy-config');
+const logger = require('../utils/logger');
 
 const proxyAxios = () => proxyConfig.createAxiosInstance();
 
@@ -29,6 +30,8 @@ router.get('/', async (req, res) => {
     const yearList = parseArrayParam(year);
     const platformList = parseArrayParam(platform);
     const countryList = parseArrayParam(country);
+    
+    logger.info(`[Movies] GET / list search="${search || ''}" type=${typeList.join(',')} year=${yearList.join(',')} platform=${platformList.join(',')} country=${countryList.join(',')} sort=${sort} page=${page} per_page=${per_page}`);
     
     const cacheKey = cache.makeKey('list', { 
       search: search || '', 
@@ -95,6 +98,7 @@ router.get('/', async (req, res) => {
     
     const total = countResult[0].total;
     const totalPages = Math.ceil(total / per_page);
+    logger.info(`[Movies] GET / list result total=${total} page=${page} per_page=${per_page}`);
 
     const parsed = rows.map(row => ({
       ...row,
@@ -121,6 +125,7 @@ router.get('/', async (req, res) => {
       total_pages: totalPages
     }).catch(() => {});
   } catch (err) {
+    logger.error(`[Movies] GET / list error: ${err.message}`);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -128,8 +133,10 @@ router.get('/', async (req, res) => {
 router.get('/countries', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT name FROM countries ORDER BY name');
+    logger.info(`[Movies] GET /countries result count=${rows.length}`);
     res.json({ success: true, data: rows.map(r => r.name) });
   } catch (err) {
+    logger.error(`[Movies] GET /countries error: ${err.message}`);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -167,7 +174,9 @@ router.get('/stats', async (req, res) => {
         years: years
       }
     });
+    logger.info(`[Movies] GET /stats result total=${total[0].total} movies=${movies[0].count} series=${series[0].count}`);
   } catch (err) {
+    logger.error(`[Movies] GET /stats error: ${err.message}`);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -195,6 +204,8 @@ router.get('/annual/:year', async (req, res) => {
       has_poster_data: row.has_poster_data === 1 || row.has_poster_data === true,
     }));
 
+    logger.info(`[Movies] GET /annual/${year} result total=${total[0].total} movies=${parsed.length}`);
+
     res.json({
       success: true,
       data: {
@@ -208,6 +219,7 @@ router.get('/annual/:year', async (req, res) => {
       }
     });
   } catch (err) {
+    logger.error(`[Movies] GET /annual/${req.params.year} error: ${err.message}`);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -219,6 +231,8 @@ router.get('/export', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT title, altTitle, year, country, type, category, tags, platform, rating, poster, poster_data, poster_mime, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt FROM movies ORDER BY id ASC`
     );
+
+    logger.info(`[Movies] GET /export format=${format} count=${rows.length}`);
 
     if (format === 'csv') {
       const headers = ['片名', '其他片名', '上映年份', '国家/地区', '类型', '分类', '标签', '观看平台', '评分', '海报链接', '豆瓣链接', 'TMDB链接', '归档日期', '备注'];
@@ -272,6 +286,7 @@ router.get('/export', async (req, res) => {
       data: movies
     });
   } catch (err) {
+    logger.error(`[Movies] GET /export error: ${err.message}`);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -300,6 +315,7 @@ router.get('/:id', async (req, res) => {
     movie.has_poster_data = hasPosterData;
     res.json({ success: true, data: movie });
   } catch (err) {
+    logger.error(`[Movies] GET /${req.params.id} error: ${err.message}`);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -312,6 +328,8 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, message: '请填写必填项' });
     }
 
+    logger.info(`[Movies] POST / create title="${title}" type=${type} platform=${platform} year=${year} country=${country} category=${category}`);
+
     await ensureCountryExists(country);
 
     const [result] = await pool.query(
@@ -322,6 +340,7 @@ router.post('/', async (req, res) => {
     await cache.flushMovies();
     res.json({ success: true, data: { id: result.insertId }, message: '新增成功' });
   } catch (err) {
+    logger.error(`[Movies] POST / create error: ${err.message}`);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -333,6 +352,8 @@ router.put('/:id', async (req, res) => {
     if (!title || !type || !platform || !archiveDate) {
       return res.status(400).json({ success: false, message: '请填写必填项' });
     }
+
+    logger.info(`[Movies] PUT /${req.params.id} update title="${title}" type=${type} platform=${platform} year=${year} country=${country} category=${category}`);
 
     const [currentRows] = await pool.query('SELECT poster, poster_data FROM movies WHERE id = ?', [req.params.id]);
     const currentPoster = currentRows[0]?.poster || '';
@@ -372,16 +393,19 @@ router.put('/:id', async (req, res) => {
 
     res.json({ success: true, message: '更新成功' });
   } catch (err) {
+    logger.error(`[Movies] PUT /${req.params.id} update error: ${err.message}`);
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
 router.delete('/:id', async (req, res) => {
   try {
+    logger.info(`[Movies] DELETE /${req.params.id} delete`);
     await pool.query('DELETE FROM movies WHERE id = ?', [req.params.id]);
     await cache.flushMovies();
     res.json({ success: true, message: '删除成功' });
   } catch (err) {
+    logger.error(`[Movies] DELETE /${req.params.id} error: ${err.message}`);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -399,6 +423,7 @@ async function downloadAndStorePoster(posterUrl) {
 router.post('/fetch-poster/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    logger.info(`[Movies] POST /fetch-poster/${id}`);
     const [rows] = await pool.query('SELECT * FROM movies WHERE id = ?', [id]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: '电影不存在' });
 
@@ -432,6 +457,7 @@ router.post('/fetch-poster/:id', async (req, res) => {
       res.json({ success: false, message: '未找到海报' });
     }
   } catch (err) {
+    logger.error(`[Movies] POST /fetch-poster/${req.params.id} error: ${err.message}`);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -445,6 +471,7 @@ router.get('/poster/:id/image', async (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.send(row.poster_data);
   } catch (err) {
+    logger.error(`[Movies] GET /poster/${req.params.id}/image error: ${err.message}`);
     res.status(500).send('Server error');
   }
 });
@@ -452,6 +479,7 @@ router.get('/poster/:id/image', async (req, res) => {
 router.post('/import', async (req, res) => {
   try {
     const { data: movies, mode = 'append' } = req.body;
+    logger.info(`[Movies] POST /import entry count=${movies ? movies.length : 0} mode=${mode}`);
 
     if (!Array.isArray(movies) || movies.length === 0) {
       return res.status(400).json({ success: false, message: '请提供有效的导入数据' });
@@ -544,6 +572,8 @@ router.post('/import', async (req, res) => {
       await conn.commit();
       await cache.flushMovies().catch(() => {});
 
+      logger.info(`[Movies] POST /import imported=${imported} skipped=${skipped} mode=${mode}`);
+
       res.json({
         success: true,
         message: `导入完成: 新增 ${imported} 条${skipped > 0 ? `, 跳过 ${skipped} 条(已存在)` : ''}`,
@@ -556,6 +586,7 @@ router.post('/import', async (req, res) => {
       conn.release();
     }
   } catch (err) {
+    logger.error(`[Movies] POST /import error: ${err.message}`);
     res.status(500).json({ success: false, message: err.message });
   }
 });
