@@ -41,7 +41,7 @@ services:
       - app-network
 
   app:
-    image: ghcr.io/liberica/movie-archive:latest
+    image: ghcr.io/lxncolours/Film-Television-Archiving:latest
     container_name: movie-archive-app
     restart: unless-stopped
     ports:
