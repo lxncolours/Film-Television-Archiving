@@ -127,6 +127,7 @@ app.put('/api/proxy/config', async (req, res) => {
   try {
     await proxyConfig.setConfig(newConfig);
     proxyAxios = proxyConfig.createAxiosInstance();
+    tmdb.refreshClient();
     logger.info('[Proxy Route] setConfig succeeded, sending success response');
     res.json({ success: true, data: await proxyConfig.getConfig(), message: '代理配置已更新' });
   } catch (e) {

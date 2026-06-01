@@ -74,9 +74,11 @@ async function saveConfig(apiKey) {
 }
 
 function getClient() {
-  if (client) return client;
-  client = proxyConfig.createAxiosInstance({ timeout: 15000 });
-  return client;
+  return proxyConfig.createAxiosInstance({ timeout: 15000 });
+}
+
+function refreshClient() {
+  client = null;
 }
 
 async function getApiKey() {
@@ -293,5 +295,6 @@ module.exports = {
   getTvDetails,
   getSeasonDetails,
   parseSeasonInfo,
+  refreshClient,
   init
 };
