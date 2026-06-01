@@ -41,7 +41,7 @@ services:
       - app-network
 
   app:
-    image: ghcr.io/lxncolours/Film-Television-Archiving:latest
+    image: ghcr.io/lxncolours/Film-Television-Archiving:${APP_VERSION:-latest}
     container_name: movie-archive-app
     restart: unless-stopped
     ports:
@@ -58,6 +58,7 @@ services:
       PORT: "5280"
       TMDB_API_KEY: ${TMDB_API_KEY:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      APP_VERSION: ${APP_VERSION:-latest}
     depends_on:
       mysql:
         condition: service_healthy
