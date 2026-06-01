@@ -26,7 +26,13 @@ function log(level, ...args) {
     const mi = pad(d.getMinutes());
     const s = pad(d.getSeconds());
     const timestamp = `${y}-${mo}-${da} ${h}:${mi}:${s}`;
-    console[level === 'debug' ? 'log' : level](`[${timestamp}] [${level.toUpperCase()}]`, ...args);
+    const formattedArgs = args.map(arg => {
+      if (typeof arg === 'string') {
+        return arg;
+      }
+      return JSON.stringify(arg, null, 2);
+    });
+    console[level === 'debug' ? 'log' : level](`[${timestamp}] [${level.toUpperCase()}]`, ...formattedArgs);
   }
 }
 

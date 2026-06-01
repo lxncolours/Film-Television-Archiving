@@ -3,7 +3,8 @@ FROM node:24.16.0-alpine3.23 AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --only=production --ignore-scripts
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm ci --only=production --ignore-scripts
 
 FROM node:24.16.0-alpine3.23
 

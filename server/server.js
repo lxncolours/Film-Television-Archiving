@@ -212,8 +212,8 @@ async function startServer() {
     console.log(`  Local:   http://localhost:${PORT}`);
     console.log(`  Network: http://${localIP}:${PORT}`);
     console.log('');
-    console.log('提示: 后台海报获取任务已禁用自动启动');
-    console.log('      如需启动，请调用 POST /api/background/start');
+    logger.info('提示: 后台海报获取任务已禁用自动启动');
+    logger.info('      如需启动，请调用 POST /api/background/start');
   });
 }
 
