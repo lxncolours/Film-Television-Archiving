@@ -1,0 +1,84 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - 'README.md'
+      - 'DOCKER_SETUP.md'
+      - '.env.example'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from package.json
+        id: version
+        run: echo "version=v$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        continue-on-error: true
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata for ghcr.io
+        id: meta_ghcr
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=sha,format=short
+
+      - name: Extract metadata for Docker Hub
+        id: meta_dockerhub
+        uses: docker/metadata-action@v5
+        continue-on-error: true
+        with:
+          images: liberica/film-television-archiving
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=sha,format=short
+
+      - name: Build and push to ghcr.io
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta_ghcr.outputs.tags }}
+          labels: ${{ steps.meta_ghcr.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push to Docker Hub
+        if: ${{ steps.meta_dockerhub.outputs.tags != '' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta_dockerhub.outputs.tags }}
+          labels: ${{ steps.meta_dockerhub.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,0 +1,8 @@
+node_modules/
+.env
+*.log
+.DS_Store
+Thumbs.db
+tmdb_config.json
+dump.rdb
+proxy_config.json

@@ -1,0 +1,2809 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>观影记录</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #000;
+            --surface: #111;
+            --surface-hover: #1a1a1a;
+            --border: #222;
+            --text: #f0f0f0;
+            --text-secondary: #666;
+            --accent: #e94560;
+            --accent-dim: rgba(233, 69, 96, 0.15);
+            color-scheme: dark;
+        }
+        body {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ===== Top Bar (A24 Minimal Header) ===== */
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 500;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+        .top-bar-left { display: flex; align-items: center; gap: 2rem; }
+        .top-bar-logo {
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--text);
+            cursor: default;
+        }
+        .top-bar-stats {
+            display: flex; align-items: center; gap: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            letter-spacing: 0.05em;
+        }
+        .top-bar-stats span { color: var(--text); font-weight: 500; }
+        .top-bar-right {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .top-bar-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px; height: 36px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .top-bar-btn:hover {
+            border-color: var(--text);
+            color: var(--text);
+            background: var(--surface);
+        }
+        .top-bar-btn.active {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
+        }
+        .top-bar-add {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1.2rem;
+            background: var(--accent);
+            border: none;
+            border-radius: 20px;
+            color: white;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            letter-spacing: 0.03em;
+        }
+        .top-bar-add:hover {
+            background: #ff3b6f;
+            transform: translateY(-1px);
+        }
+
+        /* ===== Filter Panel (Dropdown from top) ===== */
+        .filter-panel {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            z-index: 490;
+            background: rgba(0,0,0,0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 2rem;
+            transform: translateY(-100%);
+            opacity: 0;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+        .filter-panel.open {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: all;
+        }
+        .filter-panel-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            align-items: flex-end;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            min-width: 140px;
+        }
+        .filter-group-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+        .filter-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+        .chip {
+            padding: 0.35rem 0.9rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .chip:hover { border-color: var(--text-secondary); color: var(--text); }
+        .chip.active {
+            background: var(--accent-dim);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .filter-search {
+            display: flex;
+            align-items: center;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 0 1rem;
+            gap: 0.5rem;
+            min-width: 220px;
+        }
+        .filter-search input {
+            flex: 1;
+            background: none;
+            border: none;
+            padding: 0.6rem 0;
+            color: var(--text);
+            font-size: 0.85rem;
+            font-family: inherit;
+            outline: none;
+        }
+        .filter-search input::placeholder { color: var(--text-secondary); }
+        .filter-search svg { color: var(--text-secondary); flex-shrink: 0; }
+        .filter-sort select {
+            padding: 0.6rem 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            color: var(--text);
+            font-size: 0.8rem;
+            cursor: pointer;
+            outline: none;
+            font-family: inherit;
+        }
+        .filter-reset {
+            padding: 0.5rem 1rem;
+            background: transparent;
+            border: 1px dashed var(--border);
+            border-radius: 20px;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .filter-reset:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .filter-network {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: #10b981;
+            margin-left: auto;
+        }
+        .filter-network a { color: #10b981; text-decoration: none; }
+        .filter-network a:hover { text-decoration: underline; }
+
+        /* ===== Main Content ===== */
+        .main-content {
+            padding: 80px 2rem 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* ===== Stats Bar (Minimal) ===== */
+        .stats-bar {
+            display: flex;
+            gap: 2rem;
+            padding: 1rem 0;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .stats-bar-item {
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        .stats-bar-item .num {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .stats-bar-item .num.accent { color: var(--accent); }
+
+        /* ===== Movie Grid (Full-width, A24 style) ===== */
+        .movie-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .movie-card {
+            position: relative;
+            cursor: pointer;
+            background: var(--surface);
+            overflow: hidden;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: cardIn 0.4s ease forwards;
+            border-radius: 0;
+        }
+        @keyframes cardIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .movie-card .poster-wrap {
+            width: 100%;
+            aspect-ratio: 2/3;
+            position: relative;
+            overflow: hidden;
+            background: var(--surface);
+        }
+        .movie-card .poster-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: transform 0.6s ease;
+        }
+        .movie-card:hover .poster-wrap img { transform: scale(1.05); }
+
+        .movie-card .poster-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: var(--surface);
+            gap: 0.5rem;
+        }
+        .movie-card .poster-placeholder .icon {
+            font-size: 2rem;
+            opacity: 0.3;
+        }
+        .movie-card .poster-placeholder .initial {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: rgba(233, 69, 96, 0.2);
+        }
+
+        /* Rating badge - top right */
+        .movie-card .rating-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--accent);
+            color: white;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            z-index: 2;
+            border-radius: 0;
+            letter-spacing: 0.05em;
+        }
+
+        /* Hover overlay - card info */
+        .movie-card .card-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 2rem 0.8rem 0.8rem;
+            background: linear-gradient(transparent, rgba(0,0,0,0.9));
+            opacity: 0;
+            transition: opacity 0.35s ease;
+            z-index: 2;
+        }
+        .movie-card:hover .card-overlay { opacity: 1; }
+        .card-overlay .card-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 0.15rem;
+            color: white;
+        }
+        .card-overlay .card-meta {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.6);
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        .card-overlay .card-meta .platform-tag {
+            padding: 0.1rem 0.4rem;
+            background: rgba(255,255,255,0.1);
+            font-size: 0.65rem;
+        }
+
+        .type-tag {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.65rem;
+            letter-spacing: 0.1em;
+            z-index: 2;
+        }
+
+        /* ===== Load More ===== */
+        .load-area {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 3rem 0;
+        }
+        .load-area p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        .load-area .loading-spinner {
+            display: inline-block;
+            width: 20px; height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ===== Loading Dialog ===== */
+        .loading-dialog-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .loading-dialog-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .loading-dialog {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 2rem 2.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            min-width: 200px;
+        }
+        .loading-dialog .spinner {
+            width: 36px; height: 36px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .loading-dialog .hint {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        /* ===== Skeleton ===== */
+        .skeleton-card {
+            background: var(--surface);
+            overflow: hidden;
+        }
+        .skeleton-poster {
+            width: 100%;
+            aspect-ratio: 2/3;
+            background: var(--surface);
+            position: relative;
+            overflow: hidden;
+        }
+        .skeleton-poster::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+            animation: skeletonShine 1.6s ease-in-out infinite;
+        }
+        @keyframes skeletonShine {
+            0% { left: -100%; }
+            100% { left: 200%; }
+        }
+
+        /* ===== Empty State ===== */
+        .empty-state {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 6rem 2rem;
+            color: var(--text-secondary);
+        }
+        .empty-state .icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.4; }
+
+        /* ===== Modal ===== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        .modal-overlay.active { opacity: 1; visibility: visible; }
+        .modal-content {
+            background: var(--surface);
+            max-width: 720px;
+            width: 92%;
+            max-height: 88vh;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            transform: scale(0.95) translateY(10px);
+            transition: all 0.3s ease;
+        }
+        .modal-overlay.active .modal-content { transform: scale(1) translateY(0); }
+        .modal-content::-webkit-scrollbar { width: 6px; }
+        .modal-content::-webkit-scrollbar-track { background: transparent; }
+        .modal-content::-webkit-scrollbar-thumb { background: var(--border); }
+
+        .modal-header {
+            position: relative;
+            padding: 2rem 2rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            width: 36px; height: 36px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .modal-close:hover { border-color: var(--accent); color: var(--accent); }
+        .modal-title { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem; letter-spacing: -0.02em; }
+        .modal-alt-title { font-size: 0.85rem; color: var(--text-secondary); }
+        .modal-body { padding: 2rem; }
+
+        .modal-poster { width: 180px; flex-shrink: 0; }
+        .modal-poster img { width: 100%; display: block; }
+        @media (max-width: 600px) { .modal-poster { width: 120px; } }
+
+        .detail-row { display: flex; margin-bottom: 1.2rem; align-items: flex-start; }
+        .detail-label {
+            width: 80px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .detail-value { flex: 1; font-size: 0.9rem; color: var(--text); }
+        .rating-stars { display: flex; gap: 0.2rem; }
+        .star {
+            width: 20px; height: 20px;
+            background: rgba(233, 69, 96, 0.15);
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+        }
+        .star.filled { background: var(--accent); }
+
+        .notes-section {
+            margin-top: 1.5rem;
+            padding: 1rem 1.2rem;
+            background: var(--accent-dim);
+            border-left: 2px solid var(--accent);
+        }
+        .notes-section h4 { font-size: 0.75rem; color: var(--accent); margin-bottom: 0.5rem; letter-spacing: 0.08em; text-transform: uppercase; }
+        .notes-text { font-size: 0.9rem; color: var(--text-secondary); font-style: italic; line-height: 1.6; }
+
+        .modal-actions { display: flex; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: 1.5rem; }
+        .action-btn {
+            padding: 0.5rem 1rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 0;
+            color: var(--text);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .action-btn:hover { border-color: var(--text); }
+        .action-btn.edit:hover { border-color: var(--accent); color: var(--accent); }
+        .action-btn.delete:hover { border-color: #ef4444; color: #ef4444; }
+
+        .douban-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-top: 1rem;
+            padding: 0.5rem 1rem;
+            background: rgba(6, 179, 54, 0.1);
+            border: 1px solid rgba(6, 179, 54, 0.3);
+            color: #10b981;
+            text-decoration: none;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        .douban-link:hover { background: rgba(6, 179, 54, 0.2); }
+
+        /* ===== Add Modal (same style) ===== */
+        .form-group { margin-bottom: 1rem; }
+        .form-label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.4rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 0.7rem 0.9rem;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-size: 0.85rem;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .form-select {
+            background: var(--surface);
+            cursor: pointer;
+        }
+        .form-select option {
+            background: var(--surface);
+            color: var(--text);
+        }
+        .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--accent); }
+        .form-textarea { min-height: 80px; resize: vertical; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .form-section { margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+        .form-section-title { font-size: 0.8rem; font-weight: 600; color: var(--accent); margin-bottom: 1rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+        .tag-input-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            padding: 0.4rem;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            min-height: 40px;
+        }
+        .tag-input-container:focus-within { border-color: var(--accent); }
+        .tag-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.25rem 0.5rem;
+            background: var(--accent-dim);
+            font-size: 0.75rem;
+            color: var(--text);
+        }
+        .tag-item .remove-tag { cursor: pointer; opacity: 0.6; }
+        .tag-item .remove-tag:hover { opacity: 1; }
+        .tag-input {
+            flex: 1;
+            min-width: 80px;
+            border: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 0.85rem;
+            padding: 0.2rem;
+            outline: none;
+            font-family: inherit;
+        }
+
+        .save-btn {
+            padding: 0.6rem 1.5rem;
+            background: var(--accent);
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .save-btn:hover { background: #ff3b6f; }
+
+        .search-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0; right: 0;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            margin-top: 2px;
+            max-height: 360px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+        }
+        .search-suggestions.show { display: block; }
+        .suggestion-item {
+            display: flex;
+            gap: 0.8rem;
+            padding: 0.6rem 0.7rem;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.2s;
+        }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background: rgba(255,255,255,0.04); }
+        .suggestion-poster {
+            width: 52px; height: 72px;
+            object-fit: cover;
+            flex-shrink: 0;
+            border-radius: 3px;
+        }
+        .suggestion-info { min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+        .suggestion-title { font-weight: 500; font-size: 0.85rem; }
+        .suggestion-meta { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.15rem; }
+        .suggestion-meta .sep { margin: 0 0.3rem; opacity: 0.3; }
+        .suggestion-country { font-size: 0.7rem; color: var(--text-secondary); opacity: 0.65; margin-top: 0.1rem; }
+        .suggestion-rating { color: var(--accent); font-weight: 500; }
+
+        .notification {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 0.8rem 1.5rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-size: 0.85rem;
+            z-index: 2000;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .notification.show { opacity: 1; transform: translateY(0); }
+        .notification.success { border-color: #10b981; color: #10b981; }
+        .notification.error { border-color: #ef4444; color: #ef4444; }
+
+        /* ===== Pagination ===== */
+        .pagination {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            padding: 3rem 0 1rem;
+        }
+        .pagination .page-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 36px;
+            height: 36px;
+            padding: 0 0.6rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        .pagination .page-btn:hover {
+            border-color: var(--text);
+            color: var(--text);
+            background: var(--surface);
+        }
+        .pagination .page-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+        .pagination .page-btn:disabled {
+            opacity: 0.3;
+            cursor: default;
+            pointer-events: none;
+        }
+        .pagination .page-ellipsis {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 36px;
+            height: 36px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            letter-spacing: 0.15em;
+        }
+        .pagination .page-info {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            margin: 0 0.5rem;
+        }
+
+        @media (max-width: 900px) {
+            .movie-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+            .top-bar { padding: 0 1rem; }
+            .main-content { padding: 76px 1rem 1rem; }
+            .filter-panel { padding: 1rem; }
+            .filter-panel-inner { gap: 1rem; }
+            .filter-group { min-width: 120px; }
+            .stats-bar { gap: 1rem; flex-wrap: wrap; }
+            .form-row { grid-template-columns: 1fr; }
+            .top-bar-stats { display: none; }
+            .filter-network { display: none; }
+        }
+        @media (max-width: 500px) {
+            .movie-grid { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+            .card-overlay .card-title { font-size: 0.8rem; }
+        }
+
+        /* ===== Proxy Config Modal ===== */
+        .proxy-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .proxy-modal.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .proxy-modal-inner {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            width: 420px;
+            max-width: 90vw;
+        }
+        .proxy-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+        .proxy-modal-header h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .proxy-modal-close {
+            width: 32px; height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .proxy-modal-close:hover {
+            border-color: var(--text);
+            color: var(--text);
+        }
+        .proxy-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            margin-bottom: 1rem;
+        }
+        .proxy-form-group label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .proxy-form-group input,
+        .proxy-form-group select {
+            padding: 0.6rem 0.8rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 0.85rem;
+            outline: none;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .proxy-form-group input:focus,
+        .proxy-form-group select:focus {
+            border-color: var(--accent);
+        }
+        .proxy-form-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        .proxy-form-toggle input[type="checkbox"] {
+            width: 18px; height: 18px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+        .proxy-form-toggle label {
+            font-size: 0.85rem;
+            color: var(--text);
+            cursor: pointer;
+        }
+        .proxy-form-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+            justify-content: flex-end;
+        }
+        .proxy-form-actions button {
+            padding: 0.5rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            border: none;
+        }
+        .proxy-btn-cancel {
+            background: transparent;
+            border: 1px solid var(--border) !important;
+            color: var(--text-secondary);
+        }
+        .proxy-btn-cancel:hover {
+            border-color: var(--text) !important;
+            color: var(--text);
+        }
+        .proxy-btn-save {
+            background: var(--accent);
+            color: white;
+        }
+        .proxy-btn-save:hover {
+            background: #ff3b6f;
+            transform: translateY(-1px);
+        }
+        .proxy-form-status {
+            font-size: 0.75rem;
+            margin-top: 0.75rem;
+            text-align: center;
+            min-height: 1.2em;
+            transition: opacity 0.3s;
+        }
+        .proxy-form-status.success { color: #10b981; }
+        .proxy-form-status.error { color: var(--accent); }
+
+        /* ===== TMDB Config Modal ===== */
+        .tmdb-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .tmdb-modal.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .tmdb-modal-inner {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            width: 420px;
+            max-width: 90vw;
+        }
+        .tmdb-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+        .tmdb-modal-header h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .tmdb-modal-close {
+            width: 32px; height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tmdb-modal-close:hover {
+            border-color: var(--text);
+            color: var(--text);
+        }
+        .tmdb-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            margin-bottom: 1rem;
+        }
+        .tmdb-form-group label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .tmdb-form-group input {
+            padding: 0.6rem 0.8rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 0.85rem;
+            outline: none;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .tmdb-form-group input:focus {
+            border-color: var(--accent);
+        }
+        .tmdb-form-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            margin-top: 0.75rem;
+            min-height: 1.2em;
+            transition: opacity 0.3s;
+        }
+        .tmdb-form-status.success { color: #10b981; }
+        .tmdb-form-status.error { color: var(--accent); }
+        .tmdb-form-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+            justify-content: flex-end;
+        }
+        .tmdb-form-actions button {
+            padding: 0.5rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            border: none;
+        }
+        .tmdb-btn-cancel {
+            background: transparent;
+            border: 1px solid var(--border) !important;
+            color: var(--text-secondary);
+        }
+        .tmdb-btn-cancel:hover {
+            border-color: var(--text) !important;
+            color: var(--text);
+        }
+        .tmdb-btn-save {
+            background: var(--accent);
+            color: white;
+        }
+        .tmdb-btn-save:hover {
+            background: #ff3b6f;
+            transform: translateY(-1px);
+        }
+        .tmdb-form-hint {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: -0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .tmdb-form-hint a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        .tmdb-form-hint a:hover {
+            text-decoration: underline;
+        }
+        .tmdb-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        .tmdb-status-badge.configured {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+        }
+        .tmdb-status-badge.not-configured {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+        }
+
+        /* ===== Import/Export ===== */
+        .top-bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .action-group {
+            position: relative;
+        }
+        .action-trigger {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.5rem 0.9rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .action-trigger:hover {
+            border-color: var(--text);
+            color: var(--text);
+        }
+        .action-trigger svg { flex-shrink: 0; }
+        .action-dropdown {
+            position: absolute;
+            top: calc(100% + 4px);
+            right: 0;
+            min-width: 150px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.4rem;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-4px);
+            transition: all 0.2s ease;
+            z-index: 600;
+        }
+        .action-group.open .action-dropdown {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        .action-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+            padding: 0.5rem 0.8rem;
+            background: transparent;
+            border: none;
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 0.8rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.15s;
+            text-align: left;
+        }
+        .action-dropdown-item:hover {
+            background: rgba(255,255,255,0.06);
+        }
+        .action-dropdown-item svg {
+            width: 15px;
+            height: 15px;
+            flex-shrink: 0;
+            color: var(--text-secondary);
+        }
+
+        .import-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .import-modal.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .import-modal-inner {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            width: 480px;
+            max-width: 90vw;
+        }
+        .import-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+        .import-modal-header h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .import-modal-close {
+            width: 32px; height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .import-modal-close:hover {
+            border-color: var(--text);
+            color: var(--text);
+        }
+        .import-preview {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+            line-height: 1.6;
+        }
+        .import-preview-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.3rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .import-preview-item:last-child { border-bottom: none; }
+        .import-preview-item .idx {
+            width: 28px;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-align: right;
+            flex-shrink: 0;
+        }
+        .import-preview-item .info {
+            flex: 1;
+            min-width: 0;
+        }
+        .import-preview-item .info .title { font-weight: 500; }
+        .import-preview-item .info .meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        .import-preview-item .poster-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: rgba(16,185,129,0.4);
+            flex-shrink: 0;
+        }
+        .import-preview-item .poster-dot.got { background: #10b981; }
+
+        .import-mode-select {
+            display: flex;
+            gap: 0.75rem;
+            margin: 1rem 0;
+        }
+        .import-mode-btn {
+            flex: 1;
+            padding: 0.6rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-family: inherit;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .import-mode-btn.active {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
+        }
+        .import-mode-btn:hover:not(.active) {
+            border-color: var(--text);
+            color: var(--text);
+        }
+        .import-mode-label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.15rem;
+        }
+        .import-mode-desc {
+            font-size: 0.7rem;
+            opacity: 0.7;
+        }
+
+        .import-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+            justify-content: flex-end;
+        }
+        .import-actions button {
+            padding: 0.5rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            border: none;
+        }
+        .import-btn-cancel {
+            background: transparent;
+            border: 1px solid var(--border) !important;
+            color: var(--text-secondary);
+        }
+        .import-btn-cancel:hover {
+            border-color: var(--text) !important;
+            color: var(--text);
+        }
+        .import-btn-confirm {
+            background: var(--accent);
+            color: white;
+        }
+        .import-btn-confirm:hover {
+            background: #ff3b6f;
+            transform: translateY(-1px);
+        }
+        .import-btn-confirm:disabled {
+            opacity: 0.4;
+            cursor: default;
+            transform: none;
+        }
+        .import-status {
+            font-size: 0.8rem;
+            margin-top: 0.75rem;
+            text-align: center;
+            min-height: 1.2em;
+            transition: opacity 0.3s;
+        }
+        .import-status.success { color: #10b981; }
+        .import-status.error { color: var(--accent); }
+
+        .file-input-hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== Top Bar ===== -->
+    <header class="top-bar">
+        <div class="top-bar-left">
+            <div class="top-bar-logo">观影记录</div>
+            <div class="top-bar-stats">
+                共 <span id="filteredCount">0</span> 部影片
+            </div>
+        </div>
+        <div class="top-bar-right">
+            <a href="/annual-summary.html" class="top-bar-btn" title="年度总结" style="text-decoration:none;display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:transparent;border:1px solid var(--border);border-radius:50%;color:var(--text-secondary);cursor:pointer;transition:all 0.2s ease;">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+            </a>
+            <button class="top-bar-btn" id="searchToggle" title="筛选搜索">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+            </button>
+            <button class="top-bar-add" onclick="openAddModal()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                新增
+            </button>
+            <div class="top-bar-actions">
+                <div class="action-group" id="exportGroup">
+                    <button class="action-trigger" onclick="toggleExportMenu(event)">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        导出 ▾
+                    </button>
+                    <div class="action-dropdown">
+                        <button class="action-dropdown-item" onclick="exportJSON()">
+                            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                            导出 JSON
+                        </button>
+                        <button class="action-dropdown-item" onclick="exportCSV()">
+                            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            导出 CSV
+                        </button>
+                    </div>
+                </div>
+                <button class="action-trigger" onclick="triggerImport()">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L5 8m4-4v12"></path>
+                    </svg>
+                    导入
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ===== Filter Panel (Sliding from top) ===== -->
+    <div class="filter-panel" id="filterPanel">
+        <div class="filter-panel-inner">
+            <div class="filter-group">
+                <div class="filter-group-label">搜索</div>
+                <div class="filter-search">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    <input type="text" id="searchInput" placeholder="片名或标签...">
+                </div>
+            </div>
+            <div class="filter-group">
+                <div class="filter-group-label">类型</div>
+                <div class="filter-chips" id="typeFilter">
+                    <span class="chip active" data-value="all">全部</span>
+                    <span class="chip" data-value="电影">电影</span>
+                    <span class="chip" data-value="剧集">剧集</span>
+                    <span class="chip" data-value="纪录片">纪录片</span>
+                </div>
+            </div>
+            <div class="filter-group">
+                <div class="filter-group-label">归档年份</div>
+                <div class="filter-chips" id="yearFilter">
+                    <span class="chip active" data-value="all">全部</span>
+                </div>
+            </div>
+            <div class="filter-group">
+                <div class="filter-group-label">平台</div>
+                <div class="filter-chips" id="platformFilter">
+                    <span class="chip active" data-value="all">全部</span>
+                    <span class="chip" data-value="Netflix">Netflix</span>
+                    <span class="chip" data-value="BiliBili">BiliBili</span>
+                    <span class="chip" data-value="资源">资源</span>
+                    <span class="chip" data-value="院线">院线</span>
+                    <span class="chip" data-value="腾讯视频">腾讯视频</span>
+                </div>
+            </div>
+            <div class="filter-group">
+                <div class="filter-group-label">地区</div>
+                <div class="filter-chips" id="countryFilter">
+                    <span class="chip active" data-value="all">全部</span>
+                </div>
+            </div>
+            <div class="filter-group">
+                <div class="filter-group-label">排序</div>
+                <div class="filter-sort">
+                    <select id="sortSelect">
+                        <option value="dateDesc">最近观看</option>
+                        <option value="dateAsc">最早观看</option>
+                        <option value="ratingDesc">评分最高</option>
+                        <option value="ratingAsc">评分最低</option>
+                        <option value="titleAsc">片名 A-Z</option>
+                    </select>
+                </div>
+            </div>
+            <button class="filter-reset" id="resetBtn">重置</button>
+            <div class="filter-network">
+                <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path>
+                </svg>
+                <span id="networkUrl">获取中...</span>
+                <span style="margin:0 0.5rem;color:var(--border)">|</span>
+                <button class="top-bar-btn" id="proxyConfigBtn" title="代理设置" style="width:28px;height:28px;border-radius:50%;">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                </button>
+                <button class="top-bar-btn" id="tmdbConfigBtn" title="TMDB 设置" style="width:28px;height:28px;border-radius:50%;">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Proxy Config Modal ===== -->
+    <div class="proxy-modal" id="proxyModal">
+        <div class="proxy-modal-inner">
+            <div class="proxy-modal-header">
+                <h3>代理设置</h3>
+                <button class="proxy-modal-close" id="proxyModalClose">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="proxy-form-toggle">
+                <input type="checkbox" id="proxyEnabled">
+                <label for="proxyEnabled">启用代理</label>
+            </div>
+            <div class="proxy-form-group">
+                <label for="proxyProtocol">协议</label>
+                <select id="proxyProtocol">
+                    <option value="http">HTTP</option>
+                    <option value="https">HTTPS</option>
+                    <option value="socks5">SOCKS5</option>
+                </select>
+            </div>
+            <div class="proxy-form-group">
+                <label for="proxyHost">主机地址</label>
+                <input type="text" id="proxyHost" placeholder="例如 127.0.0.1">
+            </div>
+            <div class="proxy-form-group">
+                <label for="proxyPort">端口</label>
+                <input type="number" id="proxyPort" placeholder="例如 6789" min="1" max="65535">
+            </div>
+            <div class="proxy-form-status" id="proxyStatus"></div>
+            <div class="proxy-form-actions">
+                <button class="proxy-btn-cancel" id="proxyCancel">取消</button>
+                <button class="proxy-btn-save" id="proxySave">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== TMDB Config Modal ===== -->
+    <div class="tmdb-modal" id="tmdbModal">
+        <div class="tmdb-modal-inner">
+            <div class="tmdb-modal-header">
+                <h3>TMDB 设置</h3>
+                <button class="tmdb-modal-close" id="tmdbModalClose">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="tmdb-form-group">
+                <label for="tmdbApiKey">TMDB API Key</label>
+                <input type="text" id="tmdbApiKey" placeholder="输入你的 TMDB API Key (v3 auth)">
+                <div class="tmdb-form-hint">
+                    前往 <a href="https://www.themoviedb.org/settings/api" target="_blank">themoviedb.org/settings/api</a> 申请
+                </div>
+            </div>
+            <div class="tmdb-form-status" id="tmdbStatus">
+                <span class="tmdb-status-badge not-configured" id="tmdbConfigBadge">● 未配置</span>
+            </div>
+            <div class="tmdb-form-actions">
+                <button class="tmdb-btn-cancel" id="tmdbCancel">取消</button>
+                <button class="tmdb-btn-save" id="tmdbSave">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Import Modal ===== -->
+    <div class="import-modal" id="importModal">
+        <div class="import-modal-inner">
+            <div class="import-modal-header">
+                <h3 id="importModalTitle">导入数据</h3>
+                <button class="import-modal-close" id="importModalClose">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="importBody">
+                <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:1rem">
+                    选择之前导出的 JSON 文件进行导入，支持含海报数据的完整迁移。
+                </p>
+                <div class="import-mode-select" id="importModeSelect">
+                    <button class="import-mode-btn active" data-mode="append" onclick="setImportMode('append')">
+                        <span class="import-mode-label">追加导入</span>
+                        <span class="import-mode-desc">直接新增所有记录</span>
+                    </button>
+                    <button class="import-mode-btn" data-mode="skip" onclick="setImportMode('skip')">
+                        <span class="import-mode-label">去重导入</span>
+                        <span class="import-mode-desc">跳过已存在的记录</span>
+                    </button>
+                </div>
+                <button class="action-trigger" onclick="selectImportFile()" style="width:100%;justify-content:center;padding:0.8rem;border-radius:8px;font-size:0.85rem">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <span id="importFileLabel">选择文件...</span>
+                </button>
+                <div class="import-preview" id="importPreview" style="display:none"></div>
+                <div class="import-status" id="importStatus"></div>
+            </div>
+            <div class="import-actions">
+                <button class="import-btn-cancel" id="importCancel">取消</button>
+                <button class="import-btn-confirm" id="importConfirm" disabled onclick="confirmImport()">开始导入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Main Content ===== -->
+    <main class="main-content">
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stats-bar-item">总观影 <span class="num" id="totalCount">0</span></div>
+            <div class="stats-bar-item">平均评分 <span class="num accent" id="avgRating">0</span></div>
+            <div class="stats-bar-item">电影 <span class="num" id="movieCount">0</span></div>
+            <div class="stats-bar-item">剧集 <span class="num" id="seriesCount">0</span></div>
+        </div>
+
+        <!-- Movie Grid -->
+        <div class="movie-grid" id="movieGrid"></div>
+    </main>
+
+    <!-- ===== Detail Modal ===== -->
+    <div class="modal-overlay" id="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button class="modal-close" id="modalClose">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+                <div class="modal-title" id="modalTitle"></div>
+                <div class="modal-alt-title" id="modalAltTitle"></div>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- ===== Add/Edit Modal ===== -->
+    <div class="modal-overlay" id="addModal">
+        <div class="modal-content" style="max-width: 780px;">
+            <div class="modal-header">
+                <button class="modal-close" onclick="closeAddModal()">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+                <div class="modal-title" id="formTitle">新增观影记录</div>
+                <div class="modal-alt-title">填写影片信息</div>
+            </div>
+            <div class="modal-body">
+                <form id="movieForm">
+                    <input type="hidden" id="movieId">
+
+                    <div class="form-section">
+                        <div class="form-section-title">基本信息</div>
+                        <div class="form-group">
+                            <label class="form-label">片名 *</label>
+                            <div style="position: relative;">
+                                <input type="text" class="form-input" id="title" required placeholder="输入片名搜索...">
+                                <div class="search-suggestions" id="searchSuggestions"></div>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">其他片名</label>
+                                <input type="text" class="form-input" id="altTitle">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">上映年份</label>
+                                <input type="number" class="form-input" id="year" min="1900" max="2030">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">国家/地区</label>
+                                <input type="text" class="form-input" id="country" placeholder="如：美国, 中国">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">类型 *</label>
+                                <select class="form-select" id="type" required>
+                                    <option value="">请选择</option>
+                                    <option value="电影">电影</option>
+                                    <option value="剧集">剧集</option>
+                                    <option value="纪录片">纪录片</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title">评分与观看</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">我的评分 *</label>
+                                <select class="form-select" id="rating" required>
+                                    <option value="">请选择</option>
+                                    <option value="10">10 - 完美</option>
+                                    <option value="9">9 - 优秀</option>
+                                    <option value="8">8 - 很好</option>
+                                    <option value="7">7 - 不错</option>
+                                    <option value="6">6 - 及格</option>
+                                    <option value="5">5 - 一般</option>
+                                    <option value="4">4 - 较差</option>
+                                    <option value="3">3 - 很差</option>
+                                    <option value="2">2 - 极差</option>
+                                    <option value="1">1 - 灾难</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">观看平台 *</label>
+                                <select class="form-select" id="platform" required>
+                                    <option value="">请选择</option>
+                                    <option value="Netflix">Netflix</option>
+                                    <option value="BiliBili">BiliBili</option>
+                                    <option value="腾讯视频">腾讯视频</option>
+                                    <option value="爱奇艺">爱奇艺</option>
+                                    <option value="优酷">优酷</option>
+                                    <option value="Disney+">Disney+</option>
+                                    <option value="院线">院线</option>
+                                    <option value="资源">资源</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title">详细信息</div>
+                        <div class="form-group">
+                            <label class="form-label">分类</label>
+                            <input type="text" class="form-input" id="category" placeholder="如：动作, 剧情">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">TMDB链接</label>
+                                <input type="url" class="form-input" id="tmdbUrl" placeholder="https://www.themoviedb.org/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">归档日期 *</label>
+                                <input type="date" class="form-input" id="archiveDate" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title">其他</div>
+                        <div class="form-group">
+                            <label class="form-label">海报图片URL</label>
+                            <input type="url" class="form-input" id="poster" placeholder="https://...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-textarea" id="notes" placeholder="写下你的观影感受..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="action-btn" onclick="closeAddModal()">取消</button>
+                        <button type="submit" class="save-btn">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Notification ===== -->
+    <div class="notification" id="notification"></div>
+    <input type="file" class="file-input-hidden" id="importFileInput" accept=".json">
+
+    <div class="loading-dialog-overlay" id="loadingDialog">
+        <div class="loading-dialog">
+            <div class="spinner"></div>
+            <div class="hint" id="loadingHint">正在加载...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = `${window.location.origin}/api`;
+
+        let movies = [];
+        let pagination = { page: 1, per_page: 21, total: 0, total_pages: 0 };
+        let filters = { search: '', type: [], year: [], platform: [], country: [] };
+        let editingId = null;
+        let searchTimeout = null;
+        let isLoading = false;
+        let posterFetched = false;
+        let filterOpen = false;
+
+        function proxyImg(movie) {
+            if (!movie) return '';
+            if (movie.has_poster_data) return `/api/movies/poster/${movie.id}/image`;
+            if (!movie.poster || movie.poster === '_not_found_') return '';
+            if (movie.poster.includes('doubanio.com') || movie.poster.includes('douban.com')) {
+                return `/api/proxy/image?url=${encodeURIComponent(movie.poster)}`;
+            }
+            return movie.poster;
+        }
+
+        async function apiGet(url) {
+            try {
+                const cacheBuster = url.includes('?') ? '&_t=' : '?_t=';
+                const res = await fetch(url + cacheBuster + Date.now(), { cache: 'no-store' });
+                if (res.ok) return await res.json();
+            } catch (e) { console.error('API Error:', e); }
+            return { success: false };
+        }
+
+        async function apiFetch(url, opts) {
+            try {
+                const ctrl = new AbortController();
+                const timeout = opts?.timeout || 8000;
+                const t = setTimeout(() => ctrl.abort(), timeout);
+                const res = await fetch(url, { ...opts, signal: ctrl.signal });
+                clearTimeout(t);
+                return await res.json();
+            } catch (e) { 
+                console.error('API Error:', e);
+                return { success: false, message: '网络错误' }; }
+        }
+
+        async function fetchStats() {
+            const d = await apiGet(`${API_BASE}/movies/stats`);
+            if (d.success && d.data) {
+                const s = d.data;
+                document.getElementById('totalCount').textContent = s.total || 0;
+                document.getElementById('avgRating').textContent = s.avgRating || 0;
+                document.getElementById('movieCount').textContent = s.movieCount || 0;
+                document.getElementById('seriesCount').textContent = s.seriesCount || 0;
+
+                const yearFilter = document.getElementById('yearFilter');
+                if (s.years && s.years.length > 0) {
+                    yearFilter.innerHTML = '';
+                    const allChip = document.createElement('span');
+                    allChip.className = 'chip active';
+                    allChip.dataset.value = 'all';
+                    allChip.textContent = '全部';
+                    allChip.addEventListener('click', () => {
+                        document.querySelectorAll('#yearFilter .chip').forEach(x => x.classList.remove('active'));
+                        allChip.classList.add('active');
+                        filters.year = [];
+                        applyFilters();
+                    });
+                    yearFilter.appendChild(allChip);
+                    
+                    s.years.forEach(y => {
+                        const chip = document.createElement('span');
+                        chip.className = 'chip';
+                        chip.dataset.value = y.year;
+                        chip.textContent = y.year;
+                        chip.addEventListener('click', () => {
+                            allChip.classList.remove('active');
+                            if (chip.classList.contains('active')) {
+                                chip.classList.remove('active');
+                                filters.year = filters.year.filter(v => v !== String(y.year));
+                            } else {
+                                chip.classList.add('active');
+                                filters.year.push(String(y.year));
+                            }
+                            if (filters.year.length === 0) {
+                                allChip.classList.add('active');
+                            }
+                            applyFilters();
+                        });
+                        yearFilter.appendChild(chip);
+                    });
+                }
+            }
+        }
+
+        async function fetchCountries() {
+            const d = await apiGet(`${API_BASE}/movies/countries`);
+            if (d.success && d.data) {
+                const countryFilter = document.getElementById('countryFilter');
+                countryFilter.innerHTML = '';
+                
+                const allChip = document.createElement('span');
+                allChip.className = 'chip active';
+                allChip.dataset.value = 'all';
+                allChip.textContent = '全部';
+                allChip.addEventListener('click', () => {
+                    document.querySelectorAll('#countryFilter .chip').forEach(x => x.classList.remove('active'));
+                    allChip.classList.add('active');
+                    filters.country = [];
+                    applyFilters();
+                });
+                countryFilter.appendChild(allChip);
+                
+                d.data.forEach(country => {
+                    const chip = document.createElement('span');
+                    chip.className = 'chip';
+                    chip.dataset.value = country;
+                    chip.textContent = country;
+                    chip.addEventListener('click', () => {
+                        allChip.classList.remove('active');
+                        if (chip.classList.contains('active')) {
+                            chip.classList.remove('active');
+                            filters.country = filters.country.filter(v => v !== country);
+                        } else {
+                            chip.classList.add('active');
+                            filters.country.push(country);
+                        }
+                        if (filters.country.length === 0) {
+                            allChip.classList.add('active');
+                        }
+                        applyFilters();
+                    });
+                    countryFilter.appendChild(chip);
+                });
+            }
+        }
+
+        async function loadNetworkInfo() {
+            try {
+                const d = await apiGet(`${API_BASE}/network/info`);
+                if (d.success && d.data) {
+                    document.getElementById('networkUrl').innerHTML =
+                        `<a href="${d.data.networkUrl}" target="_blank">${d.data.networkUrl}</a>`;
+                }
+            } catch (e) {
+                document.getElementById('networkUrl').textContent = '获取失败';
+            }
+        }
+
+        // ===== Proxy Config =====
+        async function loadProxyConfig() {
+            try {
+                const d = await apiGet(`${API_BASE}/proxy/config`);
+                if (d.success && d.data) {
+                    document.getElementById('proxyEnabled').checked = d.data.enabled !== false;
+                    document.getElementById('proxyProtocol').value = d.data.protocol || 'http';
+                    document.getElementById('proxyHost').value = d.data.host || '';
+                    document.getElementById('proxyPort').value = d.data.port || '';
+                }
+            } catch (e) {
+                console.error('Failed to load proxy config');
+            }
+        }
+
+        async function saveProxyConfig() {
+            const config = {
+                enabled: document.getElementById('proxyEnabled').checked,
+                protocol: document.getElementById('proxyProtocol').value,
+                host: document.getElementById('proxyHost').value.trim(),
+                port: parseInt(document.getElementById('proxyPort').value) || 0,
+            };
+            const statusEl = document.getElementById('proxyStatus');
+            statusEl.textContent = '保存中...';
+            statusEl.className = 'proxy-form-status';
+            try {
+                const d = await apiFetch(`${API_BASE}/proxy/config`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config),
+                    timeout: 5000,
+                });
+                if (d.success) {
+                    statusEl.textContent = '✅ 代理配置已保存';
+                    statusEl.className = 'proxy-form-status success';
+                    setTimeout(() => closeProxyModal(), 800);
+                } else {
+                    statusEl.textContent = '❌ 保存失败';
+                    statusEl.className = 'proxy-form-status error';
+                }
+            } catch (e) {
+                statusEl.textContent = '❌ 网络错误';
+                statusEl.className = 'proxy-form-status error';
+            }
+        }
+
+        function openProxyModal() {
+            document.getElementById('proxyStatus').textContent = '';
+            document.getElementById('proxyStatus').className = 'proxy-form-status';
+            loadProxyConfig();
+            document.getElementById('proxyModal').classList.add('open');
+        }
+
+        function closeProxyModal() {
+            document.getElementById('proxyModal').classList.remove('open');
+        }
+
+        // ===== TMDB Config =====
+        async function loadTmdbConfig() {
+            try {
+                const d = await apiGet(`${API_BASE}/tmdb/config`);
+                if (d.success && d.data) {
+                    const badge = document.getElementById('tmdbConfigBadge');
+                    const input = document.getElementById('tmdbApiKey');
+                    if (d.data.api_key_set) {
+                        badge.textContent = '● 已配置';
+                        badge.className = 'tmdb-status-badge configured';
+                        input.placeholder = 'API Key 已配置，输入新值可更新';
+                    } else {
+                        badge.textContent = '● 未配置';
+                        badge.className = 'tmdb-status-badge not-configured';
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load TMDB config');
+            }
+        }
+
+        async function saveTmdbConfig() {
+            const apiKey = document.getElementById('tmdbApiKey').value.trim();
+            if (!apiKey) {
+                showStatus('请填入 API Key', 'error');
+                return;
+            }
+            showStatus('验证中...', '');
+            try {
+                const d = await apiFetch(`${API_BASE}/tmdb/config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: apiKey }),
+                    timeout: 5000,
+                });
+                if (d.success) {
+                    showStatus('✅ TMDB API Key 已保存', 'success');
+                    await loadTmdbConfig();
+                    setTimeout(() => closeTmdbModal(), 800);
+                } else {
+                    showStatus('❌ ' + (d.message || '保存失败'), 'error');
+                }
+            } catch (e) {
+                showStatus('❌ 网络错误', 'error');
+            }
+        }
+
+        function showStatus(msg, type) {
+            const el = document.getElementById('tmdbStatus');
+            el.textContent = msg;
+            el.className = 'tmdb-form-status' + (type ? ' ' + type : '');
+        }
+
+        function openTmdbModal() {
+            const statusEl = document.getElementById('tmdbStatus');
+            statusEl.textContent = '';
+            statusEl.className = 'tmdb-form-status';
+            document.getElementById('tmdbApiKey').value = '';
+            loadTmdbConfig();
+            document.getElementById('tmdbModal').classList.add('open');
+        }
+
+        function closeTmdbModal() {
+            document.getElementById('tmdbModal').classList.remove('open');
+        }
+
+        const LOADING_TEXT = {
+            default: '正在加载...',
+            movies: '正在加载影片...',
+            data: '正在加载数据...'
+        };
+        
+        let debounceTimer = null;
+        
+        async function applyFilters(resetPage = true, skipDebounce = false) {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            
+            const execute = async () => {
+                try {
+                    if (resetPage) {
+                        pagination.page = 1;
+                        updateUrlPage();
+                    }
+                    movies = [];
+                    showLoading(LOADING_TEXT.movies);
+                    await fetchMovies();
+                    renderMovies();
+                } catch (e) {
+                    console.error('Failed to apply filters:', e);
+                    showNotification('加载失败', 'error');
+                } finally {
+                    hideLoading();
+                }
+            };
+            
+            if (skipDebounce) {
+                await execute();
+            } else {
+                debounceTimer = setTimeout(execute, 150);
+            }
+        }
+
+        async function fetchMovies() {
+            if (isLoading) return;
+            isLoading = true;
+            const params = new URLSearchParams();
+            if (filters.search) params.set('search', filters.search);
+            params.set('type', filters.type);
+            params.set('year', filters.year);
+            params.set('platform', filters.platform);
+            params.set('country', filters.country);
+            params.set('sort', document.getElementById('sortSelect').value);
+            params.set('page', pagination.page);
+            params.set('per_page', pagination.per_page);
+            try {
+                const data = await apiGet(`${API_BASE}/movies?${params}`);
+                if (data.success) {
+                    movies = data.data;
+                    pagination.total = data.total;
+                    pagination.total_pages = data.total_pages;
+                    pagination.page = data.page;
+                } else {
+                    document.getElementById('movieGrid').innerHTML =
+                        '<div class="empty-state"><div class="icon">⚠️</div><p>加载失败</p></div>';
+                }
+            } finally { 
+                isLoading = false;
+            }
+        }
+
+        async function goToPage(page) {
+            if (isLoading || page < 1 || page > pagination.total_pages) return;
+            pagination.page = page;
+            updateUrlPage();
+            try {
+                showLoading('正在加载影片...');
+                await fetchMovies();
+                renderMovies();
+            } catch (e) {
+                console.error('Failed to go to page:', e);
+                showNotification('加载失败', 'error');
+            } finally {
+                hideLoading();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        function renderPagination() {
+            if (pagination.total_pages <= 1) return '';
+
+            const total = pagination.total_pages;
+            const current = pagination.page;
+            let pages = [];
+
+            // Always show first page
+            pages.push(1);
+
+            // Calculate range around current page
+            let start = Math.max(2, current - 1);
+            let end = Math.min(total - 1, current + 1);
+
+            // Adjust for edge cases
+            if (current <= 3) { start = 2; end = Math.min(4, total - 1); }
+            if (current >= total - 2) { start = Math.max(total - 3, 2); end = total - 1; }
+
+            // Add ellipsis before range if needed
+            if (start > 2) pages.push('...');
+
+            // Add middle pages
+            for (let i = start; i <= end; i++) pages.push(i);
+
+            // Add ellipsis after range if needed
+            if (end < total - 1) pages.push('...');
+
+            // Always show last page
+            if (total > 1) pages.push(total);
+
+            let html = '';
+
+            // Prev button
+            html += `<button class="page-btn" onclick="goToPage(${current - 1})" ${current <= 1 ? 'disabled' : ''}> ‹ </button>`;
+
+            for (const p of pages) {
+                if (p === '...') {
+                    html += `<span class="page-ellipsis">···</span>`;
+                } else {
+                    html += `<button class="page-btn${p === current ? ' active' : ''}" onclick="goToPage(${p})">${p}</button>`;
+                }
+            }
+
+            // Next button
+            html += `<button class="page-btn" onclick="goToPage(${current + 1})" ${current >= total ? 'disabled' : ''}> › </button>`;
+
+            return `<div class="pagination">${html}</div>`;
+        }
+
+        function renderMovies() {
+            const grid = document.getElementById('movieGrid');
+            document.getElementById('filteredCount').textContent = pagination.total;
+
+            if (movies.length === 0) {
+                grid.innerHTML = '<div class="empty-state"><div class="icon">🎬</div><p>没有找到匹配的影片</p></div>';
+                return;
+            }
+
+            let html = movies.map((movie, i) => `
+                <div class="movie-card" style="animation-delay:${i*0.04}s" onclick="openModal(${movie.id})">
+                    <div class="poster-wrap">
+                        ${(movie.has_poster_data || movie.poster) ? `
+                            <img src="${proxyImg(movie)}" alt="${movie.title}" loading="lazy"
+                                onerror="this.outerHTML=\`<div class=\\'poster-placeholder\\'><span class=\\'icon\\'>🎬</span><span class=\\'initial\\'>${(movie.title||'?')[0]}</span></div>\`">
+                        ` : `
+                            <div class="poster-placeholder">
+                                <span class="icon">🎬</span>
+                                <span class="initial">${(movie.title||'?')[0]}</span>
+                            </div>
+                        `}
+                        <span class="rating-badge">${Number(movie.rating||0).toFixed(1)}</span>
+                        <span class="type-tag">${movie.type||'未知'}</span>
+                        <div class="card-overlay">
+                            <div class="card-title">${movie.title}</div>
+                            <div class="card-meta">
+                                <span>${movie.year||'未知'}</span>
+                                <span class="platform-tag">${movie.platform}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            html += renderPagination();
+            grid.innerHTML = html;
+        }
+
+        async function openModal(id) {
+            // 确保 ID 类型一致
+            let movie = movies.find(m => String(m.id) === String(id));
+            if (!movie) return;
+            posterFetched = false;
+            if (!movie.has_poster_data) {
+                posterFetched = true;
+                try {
+                    await apiFetch(`${API_BASE}/movies/fetch-poster/${id}`, { method: 'POST' });
+                    const single = await apiGet(`${API_BASE}/movies/${id}`);
+                    if (single.success && single.data) {
+                        const idx = movies.findIndex(m => String(m.id) === String(id));
+                        if (idx !== -1) movies[idx] = single.data;
+                        movie = single.data;
+                    } else {
+                        movie = movies.find(m => String(m.id) === String(id));
+                    }
+                    if (!movie) return;
+                } catch (e) {
+                    console.error('自动获取海报失败:', e);
+                }
+            }
+
+            document.getElementById('modalTitle').textContent = movie.title;
+            document.getElementById('modalAltTitle').textContent = movie.altTitle || '';
+
+            const rating = Number(movie.rating || 0);
+            const stars = Array(10).fill(0).map((_, i) =>
+                `<div class="star ${i < Math.floor(rating) ? 'filled' : ''}"></div>`
+            ).join('');
+            const category = movie.category ? movie.category.split(/[,，、]/).map(t => `<span class="movie-tag" style="padding:0.2rem 0.5rem;background:var(--accent-dim);font-size:0.75rem;color:var(--text)">${t.trim()}</span>`).join('') : '';
+            const notesHTML = movie.notes ? `
+                <div class="notes-section"><h4>备注</h4><p class="notes-text">"${movie.notes}"</p></div>
+            ` : '';
+            const posterHTML = (movie.has_poster_data || movie.poster)
+                ? `<div class="modal-poster"><img src="${proxyImg(movie)}" alt="${movie.title}" onerror="this.parentElement.innerHTML=''"></div>`
+                : '';
+            const doubanLink = movie.doubanUrl ? `
+                <a href="${movie.doubanUrl}" target="_blank" class="douban-link" onclick="event.stopPropagation();" style="background:rgba(6,179,54,0.1);border-color:rgba(6,179,54,0.3)">
+                    <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M0 8h2v9h3V8h2l7 9h3V6h-3v7L9 6H6v7L0 8z"/></svg>
+                    豆瓣
+                </a>
+            ` : '';
+
+            const tmdbLink = movie.tmdbUrl ? `
+                <a href="${movie.tmdbUrl}" target="_blank" class="douban-link" onclick="event.stopPropagation();">
+                    <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+                    TMDB
+                </a>
+            ` : '';
+
+            document.getElementById('modalBody').innerHTML = `
+                <div style="display:flex;gap:1.5rem;flex-wrap:wrap">
+                    ${posterHTML}
+                    <div style="flex:1;min-width:200px">
+                        <div class="detail-row"><div class="detail-label">评分</div><div class="detail-value"><div style="display:flex;align-items:center;gap:0.8rem"><div class="rating-stars">${stars}</div><span style="font-weight:600;color:var(--accent)">${rating.toFixed(1)}</span></div></div></div>
+                        <div class="detail-row"><div class="detail-label">年份</div><div class="detail-value">${movie.year||'未知'}</div></div>
+                        <div class="detail-row"><div class="detail-label">类型</div><div class="detail-value">${movie.type||'未知'}</div></div>
+                        <div class="detail-row"><div class="detail-label">地区</div><div class="detail-value">${movie.country||'未知'}</div></div>
+                        <div class="detail-row"><div class="detail-label">平台</div><div class="detail-value">${movie.platform}</div></div>
+                        <div class="detail-row"><div class="detail-label">分类</div><div class="detail-value"><div style="display:flex;flex-wrap:wrap;gap:0.4rem">${category||'<span style="color:var(--text-secondary)">无</span>'}</div></div></div>
+                        <div class="detail-row"><div class="detail-label">归档</div><div class="detail-value">${movie.archiveDate}</div></div>
+                        ${notesHTML}
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="action-btn edit" onclick="event.stopPropagation();event.preventDefault();editMovie(${movie.id})">✏️ 编辑</button>
+                    <button class="action-btn delete" onclick="event.stopPropagation();event.preventDefault();deleteMovie(${movie.id})">🗑️ 删除</button>
+                </div>
+                ${doubanLink}${tmdbLink}
+            `;
+
+            document.getElementById('modal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+            document.body.style.overflow = '';
+            if (posterFetched) { posterFetched = false; applyFilters(); }
+        }
+
+        function openAddModal() {
+            editingId = null;
+            document.getElementById('formTitle').textContent = '新增观影记录';
+            document.getElementById('movieForm').reset();
+            document.getElementById('movieId').value = '';
+            document.getElementById('archiveDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('addModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeAddModal() {
+            document.getElementById('addModal').classList.remove('active');
+            document.body.style.overflow = '';
+            editingId = null; // 确保关闭时重置编辑状态
+        }
+
+        async function editMovie(id) {
+            closeModal();
+            // 确保 ID 类型一致
+            const movie = movies.find(m => String(m.id) === String(id));
+            if (!movie) {
+                // 如果在当前列表中找不到，尝试从 API 获取
+                const single = await apiGet(`${API_BASE}/movies/${id}`);
+                if (single.success && single.data) {
+                    const movieData = single.data;
+                    editingId = id; 
+                    document.getElementById('formTitle').textContent = '编辑观影记录';
+                    document.getElementById('movieId').value = id;
+                    document.getElementById('title').value = movieData.title;
+                    document.getElementById('altTitle').value = movieData.altTitle || '';
+                    document.getElementById('year').value = movieData.year || '';
+                    document.getElementById('country').value = movieData.country || '';
+                    document.getElementById('type').value = movieData.type;
+                    document.getElementById('rating').value = movieData.rating ? Math.round(Number(movieData.rating)) : '';
+                    document.getElementById('platform').value = movieData.platform;
+                    document.getElementById('category').value = movieData.category || '';
+                    document.getElementById('tmdbUrl').value = movieData.tmdbUrl || '';
+                    document.getElementById('archiveDate').value = (movieData.archiveDate || '').replace(/\//g, '-');
+                    document.getElementById('poster').value = movieData.poster || '';
+                    document.getElementById('notes').value = movieData.notes || '';
+                    document.getElementById('addModal').classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                } else {
+                    showNotification('找不到该电影信息', 'error');
+                }
+                return;
+            }
+            editingId = id; 
+            document.getElementById('formTitle').textContent = '编辑观影记录';
+            document.getElementById('movieId').value = id;
+            document.getElementById('title').value = movie.title;
+            document.getElementById('altTitle').value = movie.altTitle || '';
+            document.getElementById('year').value = movie.year || '';
+            document.getElementById('country').value = movie.country || '';
+            document.getElementById('type').value = movie.type;
+            document.getElementById('rating').value = movie.rating ? Math.round(Number(movie.rating)) : '';
+            document.getElementById('platform').value = movie.platform;
+            document.getElementById('category').value = movie.category || '';
+            document.getElementById('tmdbUrl').value = movie.tmdbUrl || '';
+            document.getElementById('archiveDate').value = (movie.archiveDate || '').replace(/\//g, '-');
+            document.getElementById('poster').value = movie.poster || '';
+            document.getElementById('notes').value = movie.notes || '';
+            document.getElementById('addModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        async function deleteMovie(id) {
+            if (!confirm('确定要删除这条观影记录吗？')) return;
+            // 确保 ID 类型一致
+            const movie = movies.find(m => String(m.id) === String(id));
+            if (!movie) {
+                showNotification('找不到该电影信息', 'error');
+                return;
+            }
+            const data = await apiFetch(`${API_BASE}/movies/${id}`, { method: 'DELETE' });
+            if (data.success) {
+                await fetchMovies(); renderMovies(); fetchStats(); closeModal();
+                showNotification(`已删除《${movie.title}》`, 'success');
+            } else { showNotification('删除失败', 'error'); }
+        }
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            const title = document.getElementById('title').value.trim();
+            const type = document.getElementById('type').value;
+            const rating = parseFloat(document.getElementById('rating').value);
+            const platform = document.getElementById('platform').value;
+            const archiveDate = document.getElementById('archiveDate').value;
+            if (!title || !type || !rating || !platform || !archiveDate) { showNotification('请填写必填项', 'error'); return; }
+            const movieData = {
+                title, altTitle: document.getElementById('altTitle').value.trim(),
+                year: document.getElementById('year').value ? parseInt(document.getElementById('year').value) : 0,
+                country: document.getElementById('country').value.trim(), type,
+                category: document.getElementById('category').value.trim(),
+                rating, platform, tmdbUrl: document.getElementById('tmdbUrl').value.trim(),
+                archiveDate, poster: document.getElementById('poster').value.trim(),
+                notes: document.getElementById('notes').value.trim()
+            };
+            try {
+                let res;
+                console.log('editingId:', editingId);
+                console.log('API_BASE:', API_BASE);
+                if (editingId) {
+                    console.log('PUT URL:', `${API_BASE}/movies/${editingId}`);
+                    res = await apiFetch(`${API_BASE}/movies/${editingId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(movieData) });
+                } else {
+                    console.log('POST URL:', `${API_BASE}/movies`);
+                    res = await apiFetch(`${API_BASE}/movies`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(movieData) });
+                }
+                console.log('API Response:', res);
+                if (res.success) {
+                    pagination.page = 1;
+                    await fetchMovies(); renderMovies(); fetchStats(); closeAddModal();
+                    showNotification(res.message, 'success');
+                } else { showNotification(res.message || '操作失败', 'error'); }
+            } catch (e) { 
+                console.error('Submit Error:', e);
+                showNotification('网络错误', 'error'); 
+            }
+        }
+
+        function showNotification(msg, type) {
+            const n = document.getElementById('notification');
+            n.textContent = msg; n.className = 'notification show ' + (type || '');
+            setTimeout(() => n.classList.remove('show'), 3000);
+        }
+
+        function showLoading(hint) {
+            document.getElementById('loadingHint').textContent = hint || '正在获取信息...';
+            document.getElementById('loadingDialog').classList.add('show');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingDialog').classList.remove('show');
+        }
+
+        function setupSearchSuggestions() {
+            const input = document.getElementById('title');
+            const div = document.getElementById('searchSuggestions');
+            if (!input || !div) return;
+            let lastSeq = 0;
+            let lastSearchQuery = '';
+            input.addEventListener('input', e => {
+                clearTimeout(searchTimeout);
+                const q = e.target.value.trim();
+                lastSearchQuery = q;
+                if (q.length < 2) { div.classList.remove('show'); return; }
+                const seq = ++lastSeq;
+                searchTimeout = setTimeout(() => {
+                    apiGet(`${API_BASE}/douban/search?q=${encodeURIComponent(q)}`).then(resp => {
+                        if (seq !== lastSeq) return;
+                        if (resp.success && resp.data && resp.data.length > 0) {
+                            div.innerHTML = resp.data.map(m => {
+                                const cover = (m.cover && (m.cover.includes('doubanio.com') || m.cover.includes('douban.com')))
+                                    ? `/api/proxy/image?url=${encodeURIComponent(m.cover)}` : ((m.cover && m.cover !== '_not_found_') ? m.cover : '');
+                                return `
+                        <div class="suggestion-item" onclick="selectMovie(${m.id},'${m.title.replace(/'/g, "\\'")}','${m.media_type||''}')">
+                            <img class="suggestion-poster" src="${cover}" alt=""
+                                onerror="this.style.display='none'">
+                            <div class="suggestion-info">
+                                <div class="suggestion-title">${m.title}</div>
+                                <div class="suggestion-meta">
+                                    ${m.year||''}
+                                    ${m.rating ? '<span class="suggestion-rating">★ '+m.rating+'</span>' : ''}
+                                    ${m.country ? '<span class="sep">·</span>'+m.country : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `; }).join('');
+                            div.classList.add('show');
+                        } else {
+                            div.innerHTML = '<div class="suggestion-item" style="color:var(--text-secondary)">未找到相关结果</div>';
+                            div.classList.add('show');
+                        }
+                    }).catch(() => { if (seq === lastSeq) div.classList.remove('show'); });
+                }, 300);
+            });
+            document.addEventListener('click', e => { if (!input.contains(e.target) && !div.contains(e.target)) div.classList.remove('show'); });
+        }
+
+        async function selectMovie(id, title, mediaType) {
+            document.getElementById('searchSuggestions').classList.remove('show');
+            showLoading('正在获取影片详情...');
+            try {
+                document.getElementById('title').value = title;
+
+                const tmdbResp = await apiFetch(`${API_BASE}/tmdb/detail`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, tmdb_id: id, media_type: mediaType }),
+                });
+
+                if (tmdbResp.success && tmdbResp.data) {
+                    const d = tmdbResp.data;
+                    document.getElementById('altTitle').value = d.altTitle || '';
+                    document.getElementById('year').value = d.year || '';
+                    document.getElementById('country').value = d.countries || '';
+                    document.getElementById('poster').value = d.poster || '';
+                    if (d.genres && d.genres.length > 0) document.getElementById('category').value = d.genres.join(', ');
+                    if (!editingId && d.rating) document.getElementById('rating').value = d.rating;
+                    if (!editingId && d.type) document.getElementById('type').value = d.type;
+                    if (d.tmdbUrl) document.getElementById('tmdbUrl').value = d.tmdbUrl;
+                }
+
+                showNotification('已从 TMDB 获取信息', 'success');
+            } catch {
+                showNotification('获取详情失败', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function setupEventListeners() {
+            document.getElementById('searchToggle').addEventListener('click', () => {
+                filterOpen = !filterOpen;
+                document.getElementById('filterPanel').classList.toggle('open');
+                document.getElementById('searchToggle').classList.toggle('active');
+                if (filterOpen) document.getElementById('searchInput').focus();
+            });
+
+            document.getElementById('searchInput').addEventListener('input', e => { filters.search = e.target.value; applyFilters(); });
+            document.querySelectorAll('#typeFilter .chip').forEach(c => c.addEventListener('click', () => {
+                const allChip = document.querySelector('#typeFilter .chip[data-value="all"]');
+                if (c.dataset.value === 'all') {
+                    document.querySelectorAll('#typeFilter .chip').forEach(x => x.classList.remove('active'));
+                    allChip.classList.add('active');
+                    filters.type = [];
+                } else {
+                    allChip.classList.remove('active');
+                    if (c.classList.contains('active')) {
+                        c.classList.remove('active');
+                        filters.type = filters.type.filter(v => v !== c.dataset.value);
+                    } else {
+                        c.classList.add('active');
+                        filters.type.push(c.dataset.value);
+                    }
+                    if (filters.type.length === 0) {
+                        allChip.classList.add('active');
+                    }
+                }
+                applyFilters();
+            }));
+            document.querySelectorAll('#platformFilter .chip').forEach(c => c.addEventListener('click', () => {
+                const allChip = document.querySelector('#platformFilter .chip[data-value="all"]');
+                if (c.dataset.value === 'all') {
+                    document.querySelectorAll('#platformFilter .chip').forEach(x => x.classList.remove('active'));
+                    allChip.classList.add('active');
+                    filters.platform = [];
+                } else {
+                    allChip.classList.remove('active');
+                    if (c.classList.contains('active')) {
+                        c.classList.remove('active');
+                        filters.platform = filters.platform.filter(v => v !== c.dataset.value);
+                    } else {
+                        c.classList.add('active');
+                        filters.platform.push(c.dataset.value);
+                    }
+                    if (filters.platform.length === 0) {
+                        allChip.classList.add('active');
+                    }
+                }
+                applyFilters();
+            }));
+            document.getElementById('sortSelect').addEventListener('change', () => applyFilters());
+            document.getElementById('resetBtn').addEventListener('click', () => {
+                filters = { search: '', type: [], year: [], platform: [], country: [] };
+                document.getElementById('searchInput').value = '';
+                document.querySelectorAll('.chip').forEach(c => { c.classList.remove('active'); if (c.dataset.value === 'all') c.classList.add('active'); });
+                document.getElementById('sortSelect').value = 'dateDesc';
+                applyFilters();
+            });
+
+            document.addEventListener('click', e => {
+                const filterPanel = document.getElementById('filterPanel');
+                const searchToggle = document.getElementById('searchToggle');
+                
+                // 只有筛选框点击外部关闭，详情框和编辑框不受影响
+                // 如果正在加载，跳过关闭操作
+                if (!isLoading && filterOpen && !filterPanel.contains(e.target) && !searchToggle.contains(e.target)) {
+                    filterOpen = false;
+                    filterPanel.classList.remove('open');
+                    searchToggle.classList.remove('active');
+                }
+            });
+            document.getElementById('modalClose').addEventListener('click', closeModal);
+            document.getElementById('movieForm').addEventListener('submit', handleFormSubmit);
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeAddModal(); closeImportModal(); } });
+
+            setupSearchSuggestions();
+        }
+
+        // 从 URL 参数读取页码
+        function getPageFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const page = parseInt(params.get('page'));
+            return isNaN(page) || page < 1 ? 1 : page;
+        }
+
+        // 更新 URL 中的页码参数
+        function updateUrlPage() {
+            const url = new URL(window.location.href);
+            if (pagination.page === 1) {
+                url.searchParams.delete('page');
+            } else {
+                url.searchParams.set('page', pagination.page);
+            }
+            window.history.replaceState({}, '', url);
+        }
+
+        async function init() {
+            document.getElementById('movieGrid').innerHTML = `<div class="empty-state" style="grid-column:1/-1"><p style="color:var(--text-secondary)">${LOADING_TEXT.data}</p></div>`;
+            setupEventListeners();
+
+            // 代理配置按钮事件
+            document.getElementById('proxyConfigBtn').addEventListener('click', openProxyModal);
+            document.getElementById('proxyModalClose').addEventListener('click', closeProxyModal);
+            document.getElementById('proxyCancel').addEventListener('click', closeProxyModal);
+            document.getElementById('proxySave').addEventListener('click', saveProxyConfig);
+            document.getElementById('proxyModal').addEventListener('click', (e) => {
+                if (e.target === e.currentTarget) closeProxyModal();
+            });
+
+            // TMDB 配置按钮事件
+            document.getElementById('tmdbConfigBtn').addEventListener('click', openTmdbModal);
+            document.getElementById('tmdbModalClose').addEventListener('click', closeTmdbModal);
+            document.getElementById('tmdbCancel').addEventListener('click', closeTmdbModal);
+            document.getElementById('tmdbSave').addEventListener('click', saveTmdbConfig);
+            document.getElementById('tmdbModal').addEventListener('click', (e) => {
+                if (e.target === e.currentTarget) closeTmdbModal();
+            });
+
+            // 导入弹窗事件
+            document.getElementById('importModalClose').addEventListener('click', closeImportModal);
+            document.getElementById('importCancel').addEventListener('click', closeImportModal);
+            document.getElementById('importModal').addEventListener('click', (e) => {
+                if (e.target === e.currentTarget) closeImportModal();
+            });
+
+            pagination.page = getPageFromUrl();
+            await fetchMovies();
+            renderMovies();
+            fetchStats();
+            fetchCountries();
+            loadNetworkInfo();
+        }
+
+        // ===== Export =====
+        let importMode = 'append';
+        let importData = null;
+
+        function toggleExportMenu(e) {
+            e.stopPropagation();
+            document.getElementById('exportGroup').classList.toggle('open');
+        }
+
+        document.addEventListener('click', function(e) {
+            const group = document.getElementById('exportGroup');
+            if (!group.contains(e.target)) {
+                group.classList.remove('open');
+            }
+        });
+
+        async function exportJSON() {
+            document.getElementById('exportGroup').classList.remove('open');
+            showLoading('正在导出 JSON...');
+            try {
+                const d = await apiGet(`${API_BASE}/movies/export`);
+                if (d.success) {
+                    const blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' });
+                    downloadBlob(blob, `movie-archive-${new Date().toISOString().slice(0,10)}.json`);
+                    showNotification(`导出成功，共 ${d.total} 条记录`, 'success');
+                } else {
+                    showNotification('导出失败', 'error');
+                }
+            } catch {
+                showNotification('导出失败', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function exportCSV() {
+            document.getElementById('exportGroup').classList.remove('open');
+            showLoading('正在导出 CSV...');
+            try {
+                const res = await fetch(`${API_BASE}/movies/export?format=csv`);
+                if (res.ok) {
+                    const blob = await res.blob();
+                    downloadBlob(blob, `movie-archive-${new Date().toISOString().slice(0,10)}.csv`);
+                    showNotification('CSV 导出成功', 'success');
+                } else {
+                    showNotification('导出失败', 'error');
+                }
+            } catch {
+                showNotification('导出失败', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ===== Import =====
+        function triggerImport() {
+            importMode = 'append';
+            importData = null;
+            document.getElementById('importFileLabel').textContent = '选择文件...';
+            document.getElementById('importPreview').style.display = 'none';
+            document.getElementById('importPreview').innerHTML = '';
+            document.getElementById('importStatus').textContent = '';
+            document.getElementById('importStatus').className = 'import-status';
+            document.getElementById('importConfirm').disabled = true;
+            document.getElementById('importModal').classList.add('open');
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').classList.remove('open');
+            importData = null;
+        }
+
+        function setImportMode(mode) {
+            importMode = mode;
+            document.querySelectorAll('#importModeSelect .import-mode-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === mode);
+            });
+        }
+
+        function selectImportFile() {
+            document.getElementById('importFileInput').click();
+        }
+
+        document.getElementById('importFileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                try {
+                    const parsed = JSON.parse(ev.target.result);
+                    let movies = [];
+                    if (parsed.success && Array.isArray(parsed.data)) {
+                        movies = parsed.data;
+                    } else if (Array.isArray(parsed)) {
+                        movies = parsed;
+                    } else if (parsed.data && Array.isArray(parsed.data)) {
+                        movies = parsed.data;
+                    }
+                    if (movies.length === 0) {
+                        document.getElementById('importStatus').textContent = '❌ 未找到有效的影片数据';
+                        document.getElementById('importStatus').className = 'import-status error';
+                        return;
+                    }
+                    importData = movies;
+                    document.getElementById('importFileLabel').textContent = `${file.name} (${movies.length} 条)`;
+                    document.getElementById('importConfirm').disabled = false;
+
+                    const previewEl = document.getElementById('importPreview');
+                    const maxShow = Math.min(movies.length, 50);
+                    let html = `<div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.5rem">预览前 ${maxShow} 条 / 共 ${movies.length} 条</div>`;
+                    for (let i = 0; i < maxShow; i++) {
+                        const m = movies[i];
+                        html += `<div class="import-preview-item">
+                            <span class="idx">${i + 1}</span>
+                            <span class="poster-dot ${m.poster_data ? 'got' : ''}"></span>
+                            <span class="info">
+                                <span class="title">${m.title || '未知'}</span>
+                                <span class="meta">${m.year || ''}${m.year && m.type ? ' · ' : ''}${m.type || ''}${m.platform ? ' · ' + m.platform : ''}</span>
+                            </span>
+                        </div>`;
+                    }
+                    if (movies.length > maxShow) {
+                        html += `<div style="text-align:center;color:var(--text-secondary);padding:0.5rem;font-size:0.75rem">... 还有 ${movies.length - maxShow} 条</div>`;
+                    }
+                    previewEl.innerHTML = html;
+                    previewEl.style.display = 'block';
+                    document.getElementById('importStatus').textContent = `✅ 已读取 ${movies.length} 条记录，含海报: ${movies.filter(m => m.poster_data).length} 条`;
+                    document.getElementById('importStatus').className = 'import-status success';
+                } catch {
+                    document.getElementById('importStatus').textContent = '❌ 文件解析失败，请确认是有效的 JSON 文件';
+                    document.getElementById('importStatus').className = 'import-status error';
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        });
+
+        async function confirmImport() {
+            if (!importData || importData.length === 0) return;
+            const confirmBtn = document.getElementById('importConfirm');
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = '导入中...';
+            const statusEl = document.getElementById('importStatus');
+            statusEl.textContent = `正在导入 ${importData.length} 条记录...`;
+            statusEl.className = 'import-status';
+            try {
+                const d = await apiFetch(`${API_BASE}/movies/import`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: importData, mode: importMode }),
+                    timeout: 120000
+                });
+                if (d.success) {
+                    statusEl.textContent = `✅ ${d.message}`;
+                    statusEl.className = 'import-status success';
+                    setTimeout(() => {
+                        closeImportModal();
+                        applyFilters();
+                        fetchStats();
+                        fetchCountries();
+                    }, 1500);
+                } else {
+                    statusEl.textContent = `❌ ${d.message || '导入失败'}`;
+                    statusEl.className = 'import-status error';
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = '开始导入';
+                }
+            } catch {
+                statusEl.textContent = '❌ 网络错误，导入失败';
+                statusEl.className = 'import-status error';
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = '开始导入';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
