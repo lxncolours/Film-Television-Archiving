@@ -166,7 +166,8 @@ app.get('/api/network/info', (req, res) => {
     success: true,
     data: {
       localUrl: `http://localhost:${PORT}`,
-      networkUrl: `http://${localIP}:${PORT}`
+      networkUrl: `http://${localIP}:${PORT}`,
+      version: VERSION
     }
   });
 });

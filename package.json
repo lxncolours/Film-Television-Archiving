@@ -1,6 +1,6 @@
 {
   "name": "movie-archive",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "description": "观影记录管理系统",
   "main": "server/server.js",
   "scripts": {
