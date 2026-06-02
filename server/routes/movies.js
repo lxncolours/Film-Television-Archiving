@@ -22,6 +22,15 @@ function normalizeDate(dateStr) {
   return dateStr.replace(/\//g, '-');
 }
 
+function normalizeDateTime(dt) {
+  if (!dt) return new Date();
+  if (dt instanceof Date) return dt;
+  const d = new Date(dt);
+  if (isNaN(d.getTime())) return new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 router.get('/', async (req, res) => {
   try {
     const { search, type, year, platform, country, sort = 'dateDesc', page = 1, per_page = 20 } = req.query;
@@ -539,8 +548,8 @@ router.post('/import', async (req, res) => {
           movie.tmdbUrl || '',
           archiveDate,
           movie.notes || '',
-          movie.createdAt || new Date(),
-          movie.updatedAt || new Date()
+          movie.createdAt ? normalizeDateTime(movie.createdAt) : new Date(),
+          movie.updatedAt ? normalizeDateTime(movie.updatedAt) : new Date()
         ]);
 
         if (movie.country) {
