@@ -521,11 +521,6 @@ router.post('/import', async (req, res) => {
           }
         }
 
-        let posterDataBuf = null;
-        if (movie.poster_data) {
-          posterDataBuf = Buffer.from(movie.poster_data, 'base64');
-        }
-
         let tagsJson = '[]';
         if (movie.tags) {
           tagsJson = Array.isArray(movie.tags) ? JSON.stringify(movie.tags) : String(movie.tags);
@@ -542,8 +537,6 @@ router.post('/import', async (req, res) => {
           movie.platform || '',
           movie.rating || 0,
           movie.poster || '',
-          posterDataBuf,
-          posterDataBuf ? (movie.poster_mime || 'image/jpeg') : null,
           movie.doubanUrl || '',
           movie.tmdbUrl || '',
           archiveDate,
@@ -559,8 +552,8 @@ router.post('/import', async (req, res) => {
         imported++;
 
         if (batch.length >= BATCH_SIZE) {
-          await conn.query(
-            'INSERT INTO movies (title, altTitle, year, country, type, category, tags, platform, rating, poster, poster_data, poster_mime, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt) VALUES ?',
+          const [result] = await conn.query(
+            'INSERT INTO movies (title, altTitle, year, country, type, category, tags, platform, rating, poster, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt) VALUES ?',
             [batch]
           );
           batch = [];
@@ -569,7 +562,7 @@ router.post('/import', async (req, res) => {
 
       if (batch.length > 0) {
         await conn.query(
-          'INSERT INTO movies (title, altTitle, year, country, type, category, tags, platform, rating, poster, poster_data, poster_mime, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt) VALUES ?',
+          'INSERT INTO movies (title, altTitle, year, country, type, category, tags, platform, rating, poster, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt) VALUES ?',
           [batch]
         );
       }
@@ -579,6 +572,22 @@ router.post('/import', async (req, res) => {
       }
 
       await conn.commit();
+
+      for (const movie of movies) {
+        if (!movie.poster_data) continue;
+        try {
+          const posterBuf = Buffer.from(movie.poster_data, 'base64');
+          if (posterBuf.length > 0) {
+            await conn.query(
+              'UPDATE movies SET poster_data = ?, poster_mime = ? WHERE title = ? AND archiveDate = ? LIMIT 1',
+              [posterBuf, movie.poster_mime || 'image/jpeg', movie.title, movie.archiveDate || '']
+            );
+          }
+        } catch (e) {
+          logger.warn(`[Movies] POST /import poster update failed for "${movie.title}": ${e.message}`);
+        }
+      }
+
       await cache.flushMovies().catch(() => {});
 
       logger.info(`[Movies] POST /import imported=${imported} skipped=${skipped} mode=${mode}`);

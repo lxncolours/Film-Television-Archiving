@@ -3,6 +3,7 @@ services:
     image: mysql:8.0
     container_name: movie-archive-mysql
     restart: unless-stopped
+    command: --max_allowed_packet=256M
     environment:
       TZ: Asia/Shanghai
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
