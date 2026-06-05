@@ -12,8 +12,6 @@ if (process.platform === 'win32') {
     process.stdout.write('\u001b[?7l');
   } catch {}
 }
-process.stdout.setEncoding('utf-8');
-process.stderr.setEncoding('utf-8');
 
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_NAME'];
 const missingVars = requiredEnvVars.filter(v => !process.env[v]);

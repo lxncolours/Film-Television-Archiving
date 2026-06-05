@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>观影记录</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -317,16 +317,20 @@
         /* Rating badge - top right */
         .movie-card .rating-badge {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 8px;
+            right: 8px;
             background: var(--accent);
             color: white;
-            padding: 0.2rem 0.6rem;
-            font-size: 0.75rem;
-            font-weight: 600;
+            width: 36px;
+            height: 36px;
+            font-size: 0.7rem;
+            font-weight: 700;
             z-index: 2;
-            border-radius: 0;
-            letter-spacing: 0.05em;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(233,69,96,0.5);
         }
 
         /* Hover overlay - card info */
@@ -779,7 +783,7 @@
         @media (max-width: 900px) {
             .movie-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
             .top-bar { padding: 0 1rem; }
-            .main-content { padding: 76px 1rem 1rem; }
+            .main-content { padding-top: 76px; padding-bottom: 1rem; padding-left: 1rem; padding-right: 1rem; }
             .filter-panel { padding: 1rem; }
             .filter-panel-inner { gap: 1rem; }
             .filter-group { min-width: 120px; }
@@ -1336,6 +1340,217 @@
         .file-input-hidden {
             display: none;
         }
+
+        /* ===== MOBILE RESPONSIVE ===== */
+        @media (max-width: 1024px) {
+            .movies-grid {
+                grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+                gap: 20px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .top-bar {
+                padding: 0 16px;
+                height: auto;
+                min-height: 56px;
+                flex-wrap: wrap;
+                gap: 8px;
+                padding-top: max(8px, env(safe-area-inset-top, 0px));
+                padding-bottom: 8px;
+            }
+            .top-bar .logo {
+                font-size: 1.2rem;
+                order: 1;
+            }
+            .top-bar .search-box {
+                order: 3;
+                flex: 1 1 100%;
+                height: 40px;
+            }
+            .top-bar .actions {
+                order: 2;
+                margin-left: auto;
+                gap: 6px;
+            }
+            .btn-primary {
+                padding: 8px 14px;
+                font-size: 0.8rem;
+            }
+            .btn-primary::before { content: '+'; margin-right: 4px; font-size: 1rem; }
+            .btn-primary span { display: none; }
+            .btn-secondary { padding: 8px 10px; font-size: 0; }
+            .btn-secondary::before { font-size: 0.85rem; }
+            .filter-bar {
+                top: 104px;
+                padding: 10px 12px;
+                gap: 8px;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            .filter-bar .filter-btn {
+                padding: 6px 14px;
+                font-size: 0.75rem;
+                flex-shrink: 0;
+            }
+            .main-content {
+                padding-top: 80px;
+                padding-bottom: 24px;
+                padding-left: 12px;
+                padding-right: 12px;
+            }
+            .movies-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+            .movie-card .card-info {
+                transform: none;
+                opacity: 1;
+                padding: 8px;
+                padding-top: 50px;
+                background: linear-gradient(transparent 0%, rgba(0,0,0,0.95) 50%);
+            }
+            .movie-card .card-title {
+                font-size: 0.85rem;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+                display: -webkit-box;
+            }
+            .movie-card .card-meta {
+                font-size: 0.7rem;
+            }
+            .movie-card .rating-badge {
+                width: 36px;
+                height: 36px;
+                font-size: 0.7rem;
+                top: 8px;
+                right: 8px;
+                border-radius: 50%;
+            }
+            .stats-bar {
+                padding: 0 12px 12px;
+                font-size: 0.8rem;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+            .stats-bar .stat-number {
+                font-size: 1.2rem;
+            }
+            .pagination {
+                gap: 4px;
+                flex-wrap: wrap;
+            }
+            .pagination .page-btn {
+                width: 38px;
+                height: 38px;
+                font-size: 0.85rem;
+            }
+            .pagination .page-btn:first-child,
+            .pagination .page-btn:last-child {
+                width: auto;
+                padding: 0 10px;
+                font-size: 0.75rem;
+            }
+            /* 手机端隐藏导入/导出按钮 */
+            #exportGroup,
+            #importBtn { display: none !important; }
+        }
+
+        @media (max-width: 480px) {
+            .top-bar .logo {
+                font-size: 1rem;
+            }
+            .top-bar .actions .btn-icon {
+                width: 34px;
+                height: 34px;
+                font-size: 1rem;
+            }
+            .movies-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+            .movie-card .poster-wrapper {
+                aspect-ratio: 2/3;
+            }
+            .movie-card .card-info {
+                padding: 6px;
+                padding-top: 40px;
+            }
+            .movie-card .card-title {
+                font-size: 0.75rem;
+                line-height: 1.3;
+            }
+            .movie-card .card-meta {
+                font-size: 0.65rem;
+            }
+            .movie-card .genre-tag {
+                font-size: 0.6rem;
+                padding: 2px 6px;
+            }
+            .movie-card .rating-badge {
+                width: 32px;
+                height: 32px;
+                font-size: 0.65rem;
+                top: 6px;
+                right: 6px;
+                border-radius: 50%;
+            }
+            .modal-content {
+                margin: 0;
+                border-radius: 0;
+                min-height: 100vh;
+                padding: 24px 16px;
+            }
+            .modal-poster {
+                width: 100% !important;
+                max-width: 200px;
+                margin: 0 auto 16px;
+            }
+            .form-row {
+                flex-direction: column;
+                gap: 0;
+            }
+            .form-actions {
+                flex-direction: column;
+                gap: 8px;
+            }
+            .form-actions button {
+                width: 100%;
+            }
+            .detail-row {
+                flex-direction: column;
+                gap: 2px;
+            }
+            .stats-bar {
+                font-size: 0.75rem;
+                gap: 4px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .movies-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* 横屏手机优化 */
+        @media (max-width: 768px) and (orientation: landscape) {
+            .top-bar { position: static; }
+            .filter-bar { position: static; }
+            .main-content { padding-top: 20px; }
+            .movies-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        /* 触摸优化 - 增大点击区域 */
+        @media (pointer: coarse) {
+            .filter-btn { min-height: 36px; min-width: 36px; }
+            .page-btn { min-height: 44px; min-width: 44px; }
+            .modal-close { min-width: 44px; min-height: 44px; }
+            input, select, textarea, button { font-size: 16px; }
+        }
     </style>
 </head>
 <body>
@@ -1390,7 +1605,7 @@
                         </button>
                     </div>
                 </div>
-                <button class="action-trigger" onclick="triggerImport()">
+                <button class="action-trigger" id="importBtn" onclick="triggerImport()">
                     <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L5 8m4-4v12"></path>
                     </svg>
@@ -1757,6 +1972,13 @@
     <script>
         const API_BASE = `${window.location.origin}/api`;
 
+        function getRatingColor(r) {
+            if (r >= 8.5) return '#0D47A1';   // 深蓝 - 佳作
+            if (r >= 7.0) return '#4CAF50';   // 绿 - 不错
+            if (r >= 5.0) return '#FF9800';   // 橙 - 一般
+            return '#e94560';                    // 红 - 较差
+        }
+
         let movies = [];
         let pagination = { page: 1, per_page: 21, total: 0, total_pages: 0 };
         let filters = { search: '', type: [], year: [], platform: [], country: [] };
@@ -1765,6 +1987,19 @@
         let isLoading = false;
         let posterFetched = false;
         let filterOpen = false;
+
+        function updatePerPage() {
+            pagination.per_page = window.innerWidth <= 768 ? 20 : 21;
+        }
+        updatePerPage();
+        window.addEventListener('resize', () => {
+            const newVal = window.innerWidth <= 768 ? 20 : 21;
+            if (newVal !== pagination.per_page) {
+                pagination.per_page = newVal;
+                pagination.page = 1;
+                fetchMovies().then(() => renderMovies());
+            }
+        });
 
         function proxyImg(movie) {
             if (!movie) return '';
@@ -1785,12 +2020,14 @@
             return { success: false };
         }
 
-        async function apiFetch(url, opts) {
+        async function apiFetch(url, opts = {}) {
             try {
                 const ctrl = new AbortController();
-                const timeout = opts?.timeout || 8000;
+                const timeout = opts.timeout || 8000;
                 const t = setTimeout(() => ctrl.abort(), timeout);
-                const res = await fetch(url, { ...opts, signal: ctrl.signal });
+                const fetchOpts = { ...opts, signal: ctrl.signal };
+                delete fetchOpts.timeout;
+                const res = await fetch(url, fetchOpts);
                 clearTimeout(t);
                 return await res.json();
             } catch (e) { 
@@ -2176,7 +2413,7 @@
                                 <span class="initial">${(movie.title||'?')[0]}</span>
                             </div>
                         `}
-                        <span class="rating-badge">${Number(movie.rating||0).toFixed(1)}</span>
+                        <span class="rating-badge" style="background:${getRatingColor(Number(movie.rating||0))}">${Number(movie.rating||0).toFixed(1)}</span>
                         <span class="type-tag">${movie.type||'未知'}</span>
                         <div class="card-overlay">
                             <div class="card-title">${movie.title}</div>
@@ -2248,7 +2485,7 @@
                 <div style="display:flex;gap:1.5rem;flex-wrap:wrap">
                     ${posterHTML}
                     <div style="flex:1;min-width:200px">
-                        <div class="detail-row"><div class="detail-label">评分</div><div class="detail-value"><div style="display:flex;align-items:center;gap:0.8rem"><div class="rating-stars">${stars}</div><span style="font-weight:600;color:var(--accent)">${rating.toFixed(1)}</span></div></div></div>
+                        <div class="detail-row"><div class="detail-label">评分</div><div class="detail-value"><div style="display:flex;align-items:center;gap:0.8rem"><div class="rating-stars">${stars}</div><span style="font-weight:600;color:${getRatingColor(rating)}">${rating.toFixed(1)}</span></div></div></div>
                         <div class="detail-row"><div class="detail-label">年份</div><div class="detail-value">${movie.year||'未知'}</div></div>
                         <div class="detail-row"><div class="detail-label">类型</div><div class="detail-value">${movie.type||'未知'}</div></div>
                         <div class="detail-row"><div class="detail-label">地区</div><div class="detail-value">${movie.country||'未知'}</div></div>
@@ -2806,7 +3043,35 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', init);
+        function updateTopOffsets() {
+            const topBar = document.querySelector('.top-bar');
+            const filterBar = document.querySelector('.filter-bar');
+            const mainContent = document.querySelector('.main-content');
+            if (!topBar || !filterBar || !mainContent) return;
+
+            if (window.innerWidth > 768) {
+                // 桌面端：清除内联样式，让 CSS 生效
+                filterBar.style.top = '';
+                mainContent.style.paddingTop = '';
+                return;
+            }
+
+            const barH = topBar.offsetHeight;
+            const filterH = filterBar.offsetHeight;
+            filterBar.style.top = barH + 'px';
+            mainContent.style.paddingTop = (barH + filterH - 16) + 'px';
+        }
+        // 在 resize 时重新计算，加防抖
+        let _offsetTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(_offsetTimer);
+            _offsetTimer = setTimeout(updateTopOffsets, 200);
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+            updateTopOffsets();
+        });
     </script>
 </body>
 </html>
