@@ -36,16 +36,60 @@ const VERSION = process.env.APP_VERSION || require('../package.json').version;
 
 let proxyAxios; // will be initialized in startServer
 
+// CORS: default same-origin only; set CORS_ORIGINS env for cross-origin access
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
 const corsOptions = {
-  origin: true,
+  origin: ALLOWED_ORIGINS.length > 0
+    ? (origin, callback) => {
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) callback(null, true);
+        else callback(null, false);
+      }
+    : false,
   credentials: true
 };
 
 app.use(cors(corsOptions));
-app.use(express.json({ type: 'application/json', limit: '500mb' }));
-app.use(express.urlencoded({ extended: true, limit: '500mb' }));
+app.use(express.json({ type: 'application/json', limit: '300mb' }));
+app.use(express.urlencoded({ extended: true, limit: '300mb' }));
 
 app.disable('etag');
+
+// Block access to server-side code and sensitive files
+const BLOCKED_PATHS = ['/server/', '/package.json', '/package-lock.json', '/Dockerfile', '/docker-compose.yml', '/docker-entrypoint.sh', '/.env', '/.github/', '/.gitignore', '/.githooks/', '/.workbuddy/', '/node_modules/'];
+app.use((req, res, next) => {
+  if (BLOCKED_PATHS.some(p => req.path === p || req.path.startsWith(p))) {
+    return res.status(403).send('Forbidden');
+  }
+  next();
+});
+
+// Simple in-memory rate limiter (no external dependency)
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000;
+const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX) || 200;
+app.use('/api/', (req, res, next) => {
+  const ip = (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+  const now = Date.now();
+  let record = rateLimitMap.get(ip);
+  if (!record || now > record.resetTime) {
+    record = { count: 1, resetTime: now + RATE_LIMIT_WINDOW };
+    rateLimitMap.set(ip, record);
+    next();
+  } else if (record.count >= RATE_LIMIT_MAX) {
+    res.set('Retry-After', String(Math.ceil((record.resetTime - now) / 1000)));
+    res.status(429).json({ success: false, message: '请求过于频繁，请稍后再试' });
+  } else {
+    record.count++;
+    next();
+  }
+});
+// Periodic cleanup of stale rate limit entries
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of rateLimitMap) {
+    if (now > record.resetTime) rateLimitMap.delete(ip);
+  }
+}, 5 * 60 * 1000).unref();
 
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) {
@@ -135,12 +179,50 @@ app.put('/api/proxy/config', async (req, res) => {
   }
 });
 
+// SSRF protection: only allow known image domains
+const ALLOWED_IMAGE_DOMAINS = [
+  'image.tmdb.org',
+  'doubanio.com',
+  'douban.com',
+  'img1.doubanio.com', 'img2.doubanio.com', 'img3.doubanio.com',
+  'img9.doubanio.com', 'imglf.doubanio.com', 'img3.doubanio.com',
+];
+
+function isAllowedImageUrl(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return { ok: false, reason: 'Invalid url' };
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { ok: false, reason: 'Invalid protocol' };
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  const isAllowed = ALLOWED_IMAGE_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d));
+  if (!isAllowed) return { ok: false, reason: 'Domain not allowed' };
+  // Block internal/private IPs (defense in depth against DNS rebinding)
+  if (hostname === 'localhost' || hostname === '0.0.0.0' ||
+      hostname.startsWith('127.') || hostname.startsWith('10.') ||
+      hostname.startsWith('192.168.') || hostname.startsWith('169.254.') ||
+      hostname.startsWith('172.') || hostname.startsWith('::1') || hostname.startsWith('fc') || hostname.startsWith('fd')) {
+    return { ok: false, reason: 'Internal addresses not allowed' };
+  }
+  return { ok: true };
+}
+
 app.get('/api/proxy/image', async (req, res) => {
   const { url } = req.query;
   logger.info(`[Proxy] GET /image - entry url: ${url}`);
   try {
     if (!url) return res.status(400).send('Missing url');
-    const response = await proxyAxios.get(decodeURIComponent(url), {
+    const decoded = decodeURIComponent(url);
+    const check = isAllowedImageUrl(decoded);
+    if (!check.ok) {
+      logger.warn(`[Proxy] GET /image - blocked: ${check.reason} url=${decoded}`);
+      return res.status(403).send('Forbidden');
+    }
+    const response = await proxyAxios.get(decoded, {
       responseType: 'stream',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',

@@ -2010,6 +2010,24 @@
     <script>
         const API_BASE = `${window.location.origin}/api`;
 
+        // XSS prevention: escape all user-controlled data before inserting into innerHTML
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#x27;');
+        }
+        // Only allow http(s) URLs to prevent javascript: scheme injection
+        function safeUrl(url) {
+            if (!url) return '';
+            const str = String(url);
+            if (/^https?:\/\//i.test(str)) return str;
+            return '';
+        }
+
         function getRatingColor(r) {
             if (r >= 8.5) return '#0D47A1';   // 深蓝 - 佳作
             if (r >= 7.0) return '#4CAF50';   // 绿 - 不错
@@ -2167,8 +2185,9 @@
             try {
                 const d = await apiGet(`${API_BASE}/network/info`);
                 if (d.success && d.data) {
+                    const safeNetUrl = safeUrl(d.data.networkUrl);
                     document.getElementById('networkUrl').innerHTML =
-                        `<a href="${d.data.networkUrl}" target="_blank">${d.data.networkUrl}</a>`;
+                        safeNetUrl ? `<a href="${safeNetUrl}" target="_blank" rel="noopener noreferrer">${escapeHtml(d.data.networkUrl)}</a>` : escapeHtml(d.data.networkUrl || '');
                     document.getElementById('versionDisplay').textContent = `v${d.data.version}`;
                 }
             } catch (e) {
@@ -2438,30 +2457,37 @@
                 return;
             }
 
-            let html = movies.map((movie, i) => `
-                <div class="movie-card" style="animation-delay:${i*0.04}s" onclick="openModal(${movie.id})">
+            let html = movies.map((movie, i) => {
+                const safeId = parseInt(movie.id) || 0;
+                const safeTitle = escapeHtml(movie.title);
+                const safeInitial = escapeHtml((movie.title || '?')[0] || '?');
+                const safeType = escapeHtml(movie.type || '未知');
+                const safePlatform = escapeHtml(movie.platform);
+                const safeYear = escapeHtml(movie.year || '未知');
+                return `
+                <div class="movie-card" style="animation-delay:${i*0.04}s" onclick="openModal(${safeId})">
                     <div class="poster-wrap">
                         ${(movie.has_poster_data || movie.poster) ? `
-                            <img src="${proxyImg(movie)}" alt="${movie.title}" loading="lazy"
-                                onerror="this.outerHTML=\`<div class=\\'poster-placeholder\\'><span class=\\'icon\\'>🎬</span><span class=\\'initial\\'>${(movie.title||'?')[0]}</span></div>\`">
+                            <img src="${proxyImg(movie)}" alt="${safeTitle}" loading="lazy"
+                                onerror="this.outerHTML=\`<div class=\\'poster-placeholder\\'><span class=\\'icon\\'>🎬</span><span class=\\'initial\\'>${safeInitial}</span></div>\`">
                         ` : `
                             <div class="poster-placeholder">
                                 <span class="icon">🎬</span>
-                                <span class="initial">${(movie.title||'?')[0]}</span>
+                                <span class="initial">${safeInitial}</span>
                             </div>
                         `}
                         <span class="rating-badge" style="background:${getRatingColor(Number(movie.rating||0))}">${Number(movie.rating||0).toFixed(1)}</span>
-                        <span class="type-tag">${movie.type||'未知'}</span>
+                        <span class="type-tag">${safeType}</span>
                         <div class="card-overlay">
-                            <div class="card-title">${movie.title}</div>
+                            <div class="card-title">${safeTitle}</div>
                             <div class="card-meta">
-                                <span>${movie.year||'未知'}</span>
-                                <span class="platform-tag">${movie.platform}</span>
+                                <span>${safeYear}</span>
+                                <span class="platform-tag">${safePlatform}</span>
                             </div>
                         </div>
                     </div>
                 </div>
-            `).join('');
+            `;}).join('');
 
             html += renderPagination();
             grid.innerHTML = html;
@@ -2471,26 +2497,30 @@
             document.getElementById('modalTitle').textContent = movie.title;
             document.getElementById('modalAltTitle').textContent = movie.altTitle || '';
 
+            const safeId = parseInt(movie.id) || 0;
+            const safeTitle = escapeHtml(movie.title);
             const rating = Number(movie.rating || 0);
             const stars = Array(10).fill(0).map((_, i) =>
                 `<div class="star ${i < Math.floor(rating) ? 'filled' : ''}"></div>`
             ).join('');
-            const category = movie.category ? movie.category.split(/[,，、]/).map(t => `<span class="movie-tag" style="padding:0.2rem 0.5rem;background:var(--accent-dim);font-size:0.75rem;color:var(--text)">${t.trim()}</span>`).join('') : '';
+            const category = movie.category ? movie.category.split(/[,，、]/).map(t => `<span class="movie-tag" style="padding:0.2rem 0.5rem;background:var(--accent-dim);font-size:0.75rem;color:var(--text)">${escapeHtml(t.trim())}</span>`).join('') : '';
             const notesHTML = movie.notes ? `
-                <div class="notes-section"><h4>备注</h4><p class="notes-text">"${movie.notes}"</p></div>
+                <div class="notes-section"><h4>备注</h4><p class="notes-text">"${escapeHtml(movie.notes)}"</p></div>
             ` : '';
             const posterHTML = (movie.has_poster_data || movie.poster)
-                ? `<div class="modal-poster"><img src="${proxyImg(movie)}" alt="${movie.title}" onerror="this.parentElement.innerHTML=''"></div>`
+                ? `<div class="modal-poster"><img src="${proxyImg(movie)}" alt="${safeTitle}" onerror="this.parentElement.innerHTML=''"></div>`
                 : '';
-            const doubanLink = movie.doubanUrl ? `
-                <a href="${movie.doubanUrl}" target="_blank" class="douban-link" onclick="event.stopPropagation();" style="background:rgba(6,179,54,0.1);border-color:rgba(6,179,54,0.3)">
+            const safeDoubanUrl = safeUrl(movie.doubanUrl);
+            const safeTmdbUrl = safeUrl(movie.tmdbUrl);
+            const doubanLink = safeDoubanUrl ? `
+                <a href="${safeDoubanUrl}" target="_blank" rel="noopener noreferrer" class="douban-link" onclick="event.stopPropagation();" style="background:rgba(6,179,54,0.1);border-color:rgba(6,179,54,0.3)">
                     <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M0 8h2v9h3V8h2l7 9h3V6h-3v7L9 6H6v7L0 8z"/></svg>
                     豆瓣
                 </a>
             ` : '';
 
-            const tmdbLink = movie.tmdbUrl ? `
-                <a href="${movie.tmdbUrl}" target="_blank" class="douban-link" onclick="event.stopPropagation();">
+            const tmdbLink = safeTmdbUrl ? `
+                <a href="${safeTmdbUrl}" target="_blank" rel="noopener noreferrer" class="douban-link" onclick="event.stopPropagation();">
                     <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
                     TMDB
                 </a>
@@ -2501,18 +2531,18 @@
                     ${posterHTML}
                     <div style="flex:1;min-width:200px">
                         <div class="detail-row"><div class="detail-label">评分</div><div class="detail-value"><div style="display:flex;align-items:center;gap:0.8rem"><div class="rating-stars">${stars}</div><span style="font-weight:600;color:${getRatingColor(rating)}">${rating.toFixed(1)}</span></div></div></div>
-                        <div class="detail-row"><div class="detail-label">年份</div><div class="detail-value">${movie.year||'未知'}</div></div>
-                        <div class="detail-row"><div class="detail-label">类型</div><div class="detail-value">${movie.type||'未知'}</div></div>
-                        <div class="detail-row"><div class="detail-label">地区</div><div class="detail-value">${movie.country||'未知'}</div></div>
-                        <div class="detail-row"><div class="detail-label">平台</div><div class="detail-value">${movie.platform}</div></div>
+                        <div class="detail-row"><div class="detail-label">年份</div><div class="detail-value">${escapeHtml(movie.year||'未知')}</div></div>
+                        <div class="detail-row"><div class="detail-label">类型</div><div class="detail-value">${escapeHtml(movie.type||'未知')}</div></div>
+                        <div class="detail-row"><div class="detail-label">地区</div><div class="detail-value">${escapeHtml(movie.country||'未知')}</div></div>
+                        <div class="detail-row"><div class="detail-label">平台</div><div class="detail-value">${escapeHtml(movie.platform)}</div></div>
                         <div class="detail-row"><div class="detail-label">分类</div><div class="detail-value"><div style="display:flex;flex-wrap:wrap;gap:0.4rem">${category||'<span style="color:var(--text-secondary)">无</span>'}</div></div></div>
-                        <div class="detail-row"><div class="detail-label">归档</div><div class="detail-value">${movie.archiveDate}</div></div>
+                        <div class="detail-row"><div class="detail-label">归档</div><div class="detail-value">${escapeHtml(movie.archiveDate)}</div></div>
                         ${notesHTML}
                     </div>
                 </div>
                 <div class="modal-actions">
-                    <button class="action-btn edit" onclick="event.stopPropagation();event.preventDefault();editMovie(${movie.id})">✏️ 编辑</button>
-                    <button class="action-btn delete" onclick="event.stopPropagation();event.preventDefault();deleteMovie(${movie.id})">🗑️ 删除</button>
+                    <button class="action-btn edit" onclick="event.stopPropagation();event.preventDefault();editMovie(${safeId})">✏️ 编辑</button>
+                    <button class="action-btn delete" onclick="event.stopPropagation();event.preventDefault();deleteMovie(${safeId})">🗑️ 删除</button>
                 </div>
                 ${doubanLink}${tmdbLink}
             `;
@@ -2711,17 +2741,20 @@
                         if (resp.success && resp.data && resp.data.length > 0) {
                             div.innerHTML = resp.data.map(m => {
                                 const cover = (m.cover && (m.cover.includes('doubanio.com') || m.cover.includes('douban.com')))
-                                    ? `/api/proxy/image?url=${encodeURIComponent(m.cover)}` : ((m.cover && m.cover !== '_not_found_') ? m.cover : '');
+                                    ? `/api/proxy/image?url=${encodeURIComponent(m.cover)}` : ((m.cover && m.cover !== '_not_found_') ? escapeHtml(m.cover) : '');
+                                const safeId = parseInt(m.id) || 0;
+                                const safeJsonTitle = escapeHtml(JSON.stringify(m.title || ''));
+                                const safeJsonType = escapeHtml(JSON.stringify(m.media_type || ''));
                                 return `
-                        <div class="suggestion-item" onclick="selectMovie(${m.id},'${m.title.replace(/'/g, "\\'")}','${m.media_type||''}')">
+                        <div class="suggestion-item" onclick="selectMovie(${safeId},${safeJsonTitle},${safeJsonType})">
                             <img class="suggestion-poster" src="${cover}" alt=""
                                 onerror="this.style.display='none'">
                             <div class="suggestion-info">
-                                <div class="suggestion-title">${m.title}</div>
+                                <div class="suggestion-title">${escapeHtml(m.title)}</div>
                                 <div class="suggestion-meta">
-                                    ${m.year||''}
-                                    ${m.rating ? '<span class="suggestion-rating">★ '+m.rating+'</span>' : ''}
-                                    ${m.country ? '<span class="sep">·</span>'+m.country : ''}
+                                    ${escapeHtml(m.year||'')}
+                                    ${m.rating ? '<span class="suggestion-rating">★ '+escapeHtml(m.rating)+'</span>' : ''}
+                                    ${m.country ? '<span class="sep">·</span>'+escapeHtml(m.country) : ''}
                                 </div>
                             </div>
                         </div>
@@ -2842,6 +2875,10 @@
                 }
             });
             document.getElementById('modalClose').addEventListener('click', closeModal);
+            // 点击详情页遮罩空白区域关闭（点击内容区域不关闭）
+            document.getElementById('modal').addEventListener('click', (e) => {
+                if (e.target === e.currentTarget) closeModal();
+            });
             document.getElementById('movieForm').addEventListener('submit', handleFormSubmit);
             document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeAddModal(); closeImportModal(); } });
 
@@ -3029,8 +3066,8 @@
                             <span class="idx">${i + 1}</span>
                             <span class="poster-dot ${m.poster_data ? 'got' : ''}"></span>
                             <span class="info">
-                                <span class="title">${m.title || '未知'}</span>
-                                <span class="meta">${m.year || ''}${m.year && m.type ? ' · ' : ''}${m.type || ''}${m.platform ? ' · ' + m.platform : ''}</span>
+                                <span class="title">${escapeHtml(m.title || '未知')}</span>
+                                <span class="meta">${escapeHtml(m.year || '')}${m.year && m.type ? ' · ' : ''}${escapeHtml(m.type || '')}${m.platform ? ' · ' + escapeHtml(m.platform) : ''}</span>
                             </span>
                         </div>`;
                     }
@@ -3063,7 +3100,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ data: importData, mode: importMode }),
-                    timeout: 120000
+                    timeout: 300000
                 });
                 if (d.success) {
                     statusEl.textContent = `✅ ${d.message}`;

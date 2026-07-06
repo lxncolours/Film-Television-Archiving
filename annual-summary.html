@@ -305,6 +305,17 @@
         let currentYear = null;
         let availableYears = [];
 
+        // XSS prevention: escape all user-controlled data before inserting into innerHTML
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#x27;');
+        }
+
         function showNotification(msg, type) {
             const n = document.getElementById('notification');
             n.textContent = msg;
@@ -337,7 +348,7 @@
                 availableYears = d.data.years.map(y => y.year);
                 const nav = document.getElementById('yearNav');
                 nav.innerHTML = availableYears.map(y =>
-                    `<button class="year-nav-btn" data-year="${y}">${y}</button>`
+                    `<button class="year-nav-btn" data-year="${escapeHtml(y)}">${escapeHtml(y)}</button>`
                 ).join('');
                 nav.querySelectorAll('.year-nav-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
@@ -375,7 +386,7 @@
             const platEl = document.getElementById('platformStats');
             if (data.platforms && data.platforms.length > 0) {
                 platEl.innerHTML = data.platforms.map(p =>
-                    `<span class="plat-item">${p.platform}: <strong>${p.count}</strong></span>`
+                    `<span class="plat-item">${escapeHtml(p.platform)}: <strong>${escapeHtml(p.count)}</strong></span>`
                 ).join('');
             } else {
                 platEl.innerHTML = '';
@@ -386,26 +397,31 @@
                 return;
             }
 
-            grid.innerHTML = data.movies.map((movie, i) => `
+            grid.innerHTML = data.movies.map((movie, i) => {
+                const safeTitle = escapeHtml(movie.title);
+                const safeInitial = escapeHtml((movie.title || '?')[0] || '?');
+                const safeType = escapeHtml(movie.type || '未知');
+                const safePlatform = escapeHtml(movie.platform || '');
+                return `
                 <div class="movie-card" style="animation-delay:${i*0.02}s">
                     <div class="poster-wrap">
                         ${(movie.has_poster_data || movie.poster) ? `
-                            <img src="${proxyImg(movie)}" alt="${movie.title}" loading="lazy"
-                                onerror="this.outerHTML=\`<div class='poster-placeholder'><span class='initial'>${(movie.title||'?')[0]}</span></div>\`">
+                            <img src="${proxyImg(movie)}" alt="${safeTitle}" loading="lazy"
+                                onerror="this.outerHTML=\`<div class='poster-placeholder'><span class='initial'>${safeInitial}</span></div>\`">
                         ` : `
                             <div class="poster-placeholder">
-                                <span class="initial">${(movie.title||'?')[0]}</span>
+                                <span class="initial">${safeInitial}</span>
                             </div>
                         `}
                         <span class="rating-badge">${Number(movie.rating||0).toFixed(1)}</span>
-                        <span class="type-tag">${movie.type||'未知'}</span>
+                        <span class="type-tag">${safeType}</span>
                         <div class="card-overlay">
-                            <div class="card-title">${movie.title}</div>
-                            <div class="card-meta">${movie.platform || ''}</div>
+                            <div class="card-title">${safeTitle}</div>
+                            <div class="card-meta">${safePlatform}</div>
                         </div>
                     </div>
                 </div>
-            `).join('');
+            `;}).join('');
         }
 
         document.addEventListener('DOMContentLoaded', loadYears);

@@ -1,7 +1,11 @@
 const crypto = require('crypto');
+const logger = require('./logger');
 
 const ALGORITHM = 'aes-256-gcm';
 const SECRET = process.env.ENCRYPTION_KEY || 'movie-archive-default-dev-key-change-in-production';
+if (!process.env.ENCRYPTION_KEY) {
+  logger.warn('[Security] ENCRYPTION_KEY not set — using insecure default key. Set ENCRYPTION_KEY in .env or environment.');
+}
 const KEY = crypto.scryptSync(SECRET, 'movie-archive-salt', 32);
 
 function encrypt(text) {

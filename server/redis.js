@@ -3,23 +3,34 @@ const logger = require('./utils/logger');
 
 const CACHE_TTL = 300;
 let client = null;
+let connectingPromise = null;
 
 async function getClient() {
-  if (!client) {
-    client = redis.createClient({
+  if (client && client.isOpen) return client;
+  if (client && !client.isOpen) client = null;
+  // Prevent race condition: reuse in-flight connection promise
+  if (connectingPromise) return connectingPromise;
+
+  connectingPromise = (async () => {
+    const c = redis.createClient({
       disableOfflineQueue: true,
       socket: { host: process.env.REDIS_HOST || '127.0.0.1', port: parseInt(process.env.REDIS_PORT) || 6379, reconnectStrategy: false }
     });
-    client.on('error', (err) => { logger.debug('Redis client error:', err.message); client = null; });
+    c.on('error', (err) => { logger.debug('Redis client error:', err.message); client = null; });
     try {
-      await client.connect();
+      await c.connect();
+      client = c;
+      return c;
     } catch (e) {
       logger.debug('Redis connection failed:', e.message);
       client = null;
       return null;
+    } finally {
+      connectingPromise = null;
     }
-  }
-  return client;
+  })();
+
+  return connectingPromise;
 }
 
 function makeKey(path, params) {
@@ -32,13 +43,18 @@ async function scanKeys(pattern) {
   if (!c) return [];
   const keys = [];
   try {
-    for await (const key of c.scanIterator({ MATCH: pattern, COUNT: 100 })) {
-      keys.push(key);
+    for await (const batch of c.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+      // node-redis v5 scanIterator yields arrays (batches), not individual strings
+      if (Array.isArray(batch)) {
+        keys.push(...batch);
+      } else if (typeof batch === 'string') {
+        keys.push(batch);
+      }
     }
   } catch (e) {
     logger.error(`[Redis] SCAN error: ${e.message}`);
   }
-  return keys;
+  return keys.filter(k => typeof k === 'string' && k.length > 0);
 }
 
 async function get(key) {
@@ -83,9 +99,8 @@ async function flushMovies() {
     if (keys.length > 0) {
       const c = await getClient();
       if (c) {
-        for (const key of keys) {
-          await c.del(key);
-        }
+        // Batch delete all keys in a single DEL call
+        await c.del(keys);
       }
       logger.info(`[Redis] Flushed ${keys.length} cache keys`);
     } else {

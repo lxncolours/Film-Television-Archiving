@@ -55,7 +55,16 @@ router.get('/', async (req, res) => {
     const cached = await cache.get(cacheKey);
     if (cached) return res.json(cached);
 
-    const offset = (page - 1) * per_page;
+    const pageNum = parseInt(page);
+    const perPageNum = parseInt(per_page);
+    if (isNaN(pageNum) || pageNum < 1) {
+      return res.status(400).json({ success: false, message: '无效的页码' });
+    }
+    if (isNaN(perPageNum) || perPageNum < 1 || perPageNum > 100) {
+      return res.status(400).json({ success: false, message: '每页数量需在 1-100 之间' });
+    }
+
+    const offset = (pageNum - 1) * perPageNum;
     
     let sql = 'SELECT id, title, altTitle, year, country, type, category, platform, rating, poster, poster_mime, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt, (poster_data IS NOT NULL AND poster_data != \'\') as has_poster_data FROM movies WHERE 1=1';
     let countSql = 'SELECT COUNT(*) as total FROM movies WHERE 1=1';
@@ -100,14 +109,14 @@ router.get('/', async (req, res) => {
     }
     sql += ' ORDER BY ' + sortClause;
     sql += ' LIMIT ? OFFSET ?';
-    params.push(parseInt(per_page), parseInt(offset));
+    params.push(perPageNum, offset);
 
     const [rows] = await pool.query(sql, params);
     const [countResult] = await pool.query(countSql, countParams);
     
     const total = countResult[0].total;
-    const totalPages = Math.ceil(total / per_page);
-    logger.info(`[Movies] GET / list result total=${total} page=${page} per_page=${per_page}`);
+    const totalPages = Math.ceil(total / perPageNum);
+    logger.info(`[Movies] GET / list result total=${total} page=${pageNum} per_page=${perPageNum}`);
 
     const parsed = rows.map(row => ({
       ...row,
@@ -120,8 +129,8 @@ router.get('/', async (req, res) => {
       success: true, 
       data: parsed, 
       total,
-      page: parseInt(page),
-      per_page: parseInt(per_page),
+      page: pageNum,
+      per_page: perPageNum,
       total_pages: totalPages
     });
     
@@ -129,13 +138,13 @@ router.get('/', async (req, res) => {
       success: true, 
       data: parsed, 
       total,
-      page: parseInt(page),
-      per_page: parseInt(per_page),
+      page: pageNum,
+      per_page: perPageNum,
       total_pages: totalPages
     }).catch(() => {});
   } catch (err) {
     logger.error(`[Movies] GET / list error: ${err.message}`);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 });
 
@@ -146,7 +155,7 @@ router.get('/countries', async (req, res) => {
     res.json({ success: true, data: rows.map(r => r.name) });
   } catch (err) {
     logger.error(`[Movies] GET /countries error: ${err.message}`);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 });
 
@@ -186,7 +195,7 @@ router.get('/stats', async (req, res) => {
     logger.info(`[Movies] GET /stats result total=${total[0].total} movies=${movies[0].count} series=${series[0].count}`);
   } catch (err) {
     logger.error(`[Movies] GET /stats error: ${err.message}`);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 });
 
@@ -194,8 +203,9 @@ router.get('/annual/:year', async (req, res) => {
   res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   try {
     const { year } = req.params;
-
-    // Stats for the year
+    if (!/^\d{4}$/.test(year)) {
+      return res.status(400).json({ success: false, message: '无效的年份格式' });
+    }
     const [total] = await pool.query("SELECT COUNT(*) as total FROM movies WHERE LEFT(archiveDate, 4) = ?", [year]);
     const [avg] = await pool.query("SELECT ROUND(AVG(rating),1) as avg FROM movies WHERE LEFT(archiveDate, 4) = ? AND rating > 0", [year]);
     const [movies] = await pool.query("SELECT COUNT(*) as count FROM movies WHERE LEFT(archiveDate, 4) = ? AND type='电影'", [year]);
@@ -229,7 +239,7 @@ router.get('/annual/:year', async (req, res) => {
     });
   } catch (err) {
     logger.error(`[Movies] GET /annual/${req.params.year} error: ${err.message}`);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 });
 
@@ -296,7 +306,7 @@ router.get('/export', async (req, res) => {
     });
   } catch (err) {
     logger.error(`[Movies] GET /export error: ${err.message}`);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 });
 
@@ -325,7 +335,7 @@ router.get('/:id', async (req, res) => {
     res.json({ success: true, data: movie });
   } catch (err) {
     logger.error(`[Movies] GET /${req.params.id} error: ${err.message}`);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 });
 
@@ -350,7 +360,7 @@ router.post('/', async (req, res) => {
     res.json({ success: true, data: { id: result.insertId }, message: '新增成功' });
   } catch (err) {
     logger.error(`[Movies] POST / create error: ${err.message}`);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 });
 
@@ -403,7 +413,7 @@ router.put('/:id', async (req, res) => {
     res.json({ success: true, message: '更新成功' });
   } catch (err) {
     logger.error(`[Movies] PUT /${req.params.id} update error: ${err.message}`);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 });
 
@@ -415,7 +425,7 @@ router.delete('/:id', async (req, res) => {
     res.json({ success: true, message: '删除成功' });
   } catch (err) {
     logger.error(`[Movies] DELETE /${req.params.id} error: ${err.message}`);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 });
 
@@ -467,7 +477,7 @@ router.post('/fetch-poster/:id', async (req, res) => {
     }
   } catch (err) {
     logger.error(`[Movies] POST /fetch-poster/${req.params.id} error: ${err.message}`);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 });
 
@@ -513,6 +523,26 @@ router.post('/import', async (req, res) => {
           continue;
         }
 
+        // Field validation & sanitization
+        const validTitle = String(title).slice(0, 255);
+        const validAltTitle = String(movie.altTitle || '').slice(0, 255);
+        const validRating = Math.min(Math.max(Number(movie.rating) || 0, 0), 10);
+        const validYear = (() => {
+          const y = Number(movie.year);
+          if (isNaN(y) || y < 1900 || y > 2100) return 0;
+          return y;
+        })();
+        const validPlatform = String(movie.platform || '').slice(0, 100);
+        const validType = String(movie.type || '').slice(0, 50);
+        const validCountry = String(movie.country || '').slice(0, 255);
+        const validCategory = String(movie.category || '').slice(0, 255);
+        const validNotes = String(movie.notes || '').slice(0, 2000);
+        const validPoster = String(movie.poster || '').slice(0, 500);
+        const validDoubanUrl = String(movie.doubanUrl || '').slice(0, 500);
+        const validTmdbUrl = String(movie.tmdbUrl || '').slice(0, 500);
+        // Reject poster_data larger than 5MB
+        const validPosterData = movie.poster_data && Buffer.byteLength(movie.poster_data, 'base64') <= 5 * 1024 * 1024 ? movie.poster_data : null;
+
         if (mode === 'skip') {
           const [existing] = await conn.query('SELECT id FROM movies WHERE title = ? AND archiveDate = ?', [title, archiveDate]);
           if (existing.length > 0) {
@@ -527,26 +557,26 @@ router.post('/import', async (req, res) => {
         }
 
         batch.push([
-          title,
-          movie.altTitle || '',
-          movie.year || 0,
-          movie.country || '',
-          movie.type || '',
-          movie.category || '',
+          validTitle,
+          validAltTitle,
+          validYear,
+          validCountry,
+          validType,
+          validCategory,
           tagsJson,
-          movie.platform || '',
-          movie.rating || 0,
-          movie.poster || '',
-          movie.doubanUrl || '',
-          movie.tmdbUrl || '',
+          validPlatform,
+          validRating,
+          validPoster,
+          validDoubanUrl,
+          validTmdbUrl,
           archiveDate,
-          movie.notes || '',
+          validNotes,
           movie.createdAt ? normalizeDateTime(movie.createdAt) : new Date(),
           movie.updatedAt ? normalizeDateTime(movie.updatedAt) : new Date()
         ]);
 
-        if (movie.country) {
-          movie.country.split(/[\/,，、]+/).map(s => s.trim()).filter(Boolean).forEach(c => countrySet.add(c));
+        if (validCountry) {
+          validCountry.split(/[\/,，、]+/).map(s => s.trim()).filter(Boolean).forEach(c => countrySet.add(c));
         }
 
         imported++;
@@ -577,10 +607,10 @@ router.post('/import', async (req, res) => {
         if (!movie.poster_data) continue;
         try {
           const posterBuf = Buffer.from(movie.poster_data, 'base64');
-          if (posterBuf.length > 0) {
+          if (posterBuf.length > 0 && posterBuf.length <= 5 * 1024 * 1024) {
             await conn.query(
               'UPDATE movies SET poster_data = ?, poster_mime = ? WHERE title = ? AND archiveDate = ? LIMIT 1',
-              [posterBuf, movie.poster_mime || 'image/jpeg', movie.title, movie.archiveDate || '']
+              [posterBuf, movie.poster_mime || 'image/jpeg', String(movie.title).slice(0, 255), movie.archiveDate || '']
             );
           }
         } catch (e) {
@@ -605,7 +635,7 @@ router.post('/import', async (req, res) => {
     }
   } catch (err) {
     logger.error(`[Movies] POST /import error: ${err.message}`);
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 });
 

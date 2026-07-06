@@ -2,7 +2,8 @@ const https = require('https');
 const axios = require('axios');
 const logger = require('./utils/logger');
 
-const AGENT = new https.Agent({ rejectUnauthorized: process.env.NODE_ENV === 'production' });
+// Always verify TLS certificates (reject MITM attacks)
+const AGENT = new https.Agent({ rejectUnauthorized: true });
 
 let proxyConfigCache = null;
 
