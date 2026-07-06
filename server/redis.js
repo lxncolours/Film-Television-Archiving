@@ -65,12 +65,10 @@ async function set(key, data, ttl = CACHE_TTL) {
 
 async function del(pattern) {
   try {
-    const keys = await scanKeys(pattern);
+    const keys = (await scanKeys(pattern)).filter(k => typeof k === 'string' && k.length > 0);
     if (keys.length > 0) {
       const c = await getClient();
       if (c) await c.del(keys);
-    }
-    if (keys.length > 0) {
       logger.info(`[Redis] DEL ${keys.length} keys: ${keys.join(', ')}`);
     }
   } catch (e) {
@@ -80,17 +78,21 @@ async function del(pattern) {
 
 async function flushMovies() {
   logger.info('[Redis] Flushing movie cache...');
-  const keys = await scanKeys('movies:*');
-  if (keys.length > 0) {
-    const c = await getClient();
-    if (c) {
-      for (const key of keys) {
-        await c.del(key);
+  try {
+    const keys = (await scanKeys('movies:*')).filter(k => typeof k === 'string' && k.length > 0);
+    if (keys.length > 0) {
+      const c = await getClient();
+      if (c) {
+        for (const key of keys) {
+          await c.del(key);
+        }
       }
+      logger.info(`[Redis] Flushed ${keys.length} cache keys`);
+    } else {
+      logger.info('[Redis] No cached keys to flush');
     }
-    logger.info(`[Redis] Flushed ${keys.length} cache keys`);
-  } else {
-    logger.info('[Redis] No cached keys to flush');
+  } catch (e) {
+    logger.error(`[Redis] flushMovies error: ${e.message}`);
   }
 }
 

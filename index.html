@@ -723,6 +723,22 @@
         .notification.show { opacity: 1; transform: translateY(0); }
         .notification.success { border-color: #10b981; color: #10b981; }
         .notification.error { border-color: #ef4444; color: #ef4444; }
+        @media (max-width: 768px) {
+            .notification {
+                bottom: auto; top: 1rem; right: 1rem; left: 1rem;
+                text-align: center; font-size: 0.9rem; padding: 0.7rem 1rem;
+            }
+        }
+        .field-error {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 2px rgba(239,68,68,0.25) !important;
+            animation: fieldShake 0.4s ease;
+        }
+        @keyframes fieldShake {
+            0%,100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
 
         /* ===== Pagination ===== */
         .pagination {
@@ -2007,7 +2023,6 @@
         let editingId = null;
         let searchTimeout = null;
         let isLoading = false;
-        let posterFetched = false;
         let filterOpen = false;
 
         function updatePerPage() {
@@ -2452,29 +2467,7 @@
             grid.innerHTML = html;
         }
 
-        async function openModal(id) {
-            // 确保 ID 类型一致
-            let movie = movies.find(m => String(m.id) === String(id));
-            if (!movie) return;
-            posterFetched = false;
-            if (!movie.has_poster_data) {
-                posterFetched = true;
-                try {
-                    await apiFetch(`${API_BASE}/movies/fetch-poster/${id}`, { method: 'POST' });
-                    const single = await apiGet(`${API_BASE}/movies/${id}`);
-                    if (single.success && single.data) {
-                        const idx = movies.findIndex(m => String(m.id) === String(id));
-                        if (idx !== -1) movies[idx] = single.data;
-                        movie = single.data;
-                    } else {
-                        movie = movies.find(m => String(m.id) === String(id));
-                    }
-                    if (!movie) return;
-                } catch (e) {
-                    console.error('自动获取海报失败:', e);
-                }
-            }
-
+        function renderMovieModal(movie) {
             document.getElementById('modalTitle').textContent = movie.title;
             document.getElementById('modalAltTitle').textContent = movie.altTitle || '';
 
@@ -2523,7 +2516,13 @@
                 </div>
                 ${doubanLink}${tmdbLink}
             `;
+        }
 
+        function openModal(id) {
+            // 确保 ID 类型一致；海报数据（poster_data blob 或 poster URL）已随列表返回，直接渲染弹出，不再调用接口获取
+            const movie = movies.find(m => String(m.id) === String(id));
+            if (!movie) return;
+            renderMovieModal(movie);
             document.getElementById('modal').classList.add('active');
             document.body.style.overflow = 'hidden';
         }
@@ -2531,7 +2530,6 @@
         function closeModal() {
             document.getElementById('modal').classList.remove('active');
             document.body.style.overflow = '';
-            if (posterFetched) { posterFetched = false; applyFilters(); }
         }
 
         function openAddModal() {
@@ -2602,7 +2600,6 @@
 
         async function deleteMovie(id) {
             if (!confirm('确定要删除这条观影记录吗？')) return;
-            // 确保 ID 类型一致
             const movie = movies.find(m => String(m.id) === String(id));
             if (!movie) {
                 showNotification('找不到该电影信息', 'error');
@@ -2610,19 +2607,45 @@
             }
             const data = await apiFetch(`${API_BASE}/movies/${id}`, { method: 'DELETE' });
             if (data.success) {
-                await fetchMovies(); renderMovies(); fetchStats(); closeModal();
+                // 乐观更新：立即从本地数组移除，UI 立刻反映删除
+                const idx = movies.findIndex(m => String(m.id) === String(id));
+                if (idx !== -1) movies.splice(idx, 1);
+                renderMovies(); closeModal();
                 showNotification(`已删除《${movie.title}》`, 'success');
-            } else { showNotification('删除失败', 'error'); }
+                // 后台同步刷新统计数据（不阻塞 UI）
+                fetchMovies().then(() => { renderMovies(); fetchStats(); }).catch(() => {});
+            } else { showNotification('删除失败: ' + (data.message || '未知错误'), 'error'); }
         }
 
         async function handleFormSubmit(e) {
             e.preventDefault();
+            const fields = [
+                { id: 'title', label: '片名' },
+                { id: 'type', label: '类型' },
+                { id: 'rating', label: '评分' },
+                { id: 'platform', label: '观看平台' },
+                { id: 'archiveDate', label: '归档日期' }
+            ];
+            const missing = fields.find(f => {
+                const el = document.getElementById(f.id);
+                const v = el.value.trim();
+                if (f.id === 'rating') return !v || parseFloat(v) === 0;
+                return !v;
+            });
+            if (missing) {
+                const el = document.getElementById(missing.id);
+                el.classList.add('field-error');
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => el.focus(), 300);
+                showNotification('请填写必填项：' + missing.label, 'error');
+                setTimeout(() => el.classList.remove('field-error'), 2500);
+                return;
+            }
             const title = document.getElementById('title').value.trim();
             const type = document.getElementById('type').value;
             const rating = parseFloat(document.getElementById('rating').value);
             const platform = document.getElementById('platform').value;
             const archiveDate = document.getElementById('archiveDate').value;
-            if (!title || !type || !rating || !platform || !archiveDate) { showNotification('请填写必填项', 'error'); return; }
             const movieData = {
                 title, altTitle: document.getElementById('altTitle').value.trim(),
                 year: document.getElementById('year').value ? parseInt(document.getElementById('year').value) : 0,

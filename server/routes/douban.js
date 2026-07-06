@@ -33,16 +33,23 @@ router.get('/search', async (req, res) => {
     const data = results
       .filter(r => r.media_type === 'movie' || r.media_type === 'tv')
       .slice(0, 10)
-      .map(r => ({
-        id: r.id,
-        title: r.title || r.name || '',
-        year: (r.release_date || r.first_air_date || '').slice(0, 4),
-        rating: r.vote_average ? Math.round(r.vote_average) : 0,
-        cover: r.poster_path ? tmdb.getPosterUrl(r.poster_path, 'w342') : '',
-        country: (r.origin_country || []).join(', '),
-        media_type: r.media_type,
-        source: 'tmdb',
-      }));
+      .map(r => {
+        let title = r.title || r.name || '';
+        // 用户输入了季数时，在标题后补上"第X季"，使下拉框和选中后的表单标题都带季数
+        if (si.season > 0 && r.media_type === 'tv') {
+          title = `${title} 第${si.season}季`;
+        }
+        return {
+          id: r.id,
+          title,
+          year: (r.release_date || r.first_air_date || '').slice(0, 4),
+          rating: r.vote_average ? Math.round(r.vote_average) : 0,
+          cover: r.poster_path ? tmdb.getPosterUrl(r.poster_path, 'w342') : '',
+          country: (r.origin_country || []).join(', '),
+          media_type: r.media_type,
+          source: 'tmdb',
+        };
+      });
 
     res.json({ success: true, data });
   } catch (error) {
