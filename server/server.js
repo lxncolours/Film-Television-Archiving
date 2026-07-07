@@ -63,38 +63,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Simple in-memory rate limiter (no external dependency)
-// Skip rate limiting for image/poster requests (static assets loaded in bulk)
-const RATE_SKIP_PREFIXES = ['/api/movies/poster/', '/api/proxy/image'];
-const rateLimitMap = new Map();
-const RATE_LIMIT_WINDOW = 60 * 1000;
-const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX) || 200;
-app.use('/api/', (req, res, next) => {
-  if (req.method === 'GET' && RATE_SKIP_PREFIXES.some(p => req.path.startsWith(p))) {
-    return next();
-  }
-  const ip = (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
-  const now = Date.now();
-  let record = rateLimitMap.get(ip);
-  if (!record || now > record.resetTime) {
-    record = { count: 1, resetTime: now + RATE_LIMIT_WINDOW };
-    rateLimitMap.set(ip, record);
-    next();
-  } else if (record.count >= RATE_LIMIT_MAX) {
-    res.set('Retry-After', String(Math.ceil((record.resetTime - now) / 1000)));
-    res.status(429).json({ success: false, message: '请求过于频繁，请稍后再试' });
-  } else {
-    record.count++;
-    next();
-  }
-});
-// Periodic cleanup of stale rate limit entries
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, record] of rateLimitMap) {
-    if (now > record.resetTime) rateLimitMap.delete(ip);
-  }
-}, 5 * 60 * 1000).unref();
 
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) {
