@@ -64,10 +64,15 @@ app.use((req, res, next) => {
 });
 
 // Simple in-memory rate limiter (no external dependency)
+// Skip rate limiting for image/poster requests (static assets loaded in bulk)
+const RATE_SKIP_PREFIXES = ['/api/movies/poster/', '/api/proxy/image'];
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW = 60 * 1000;
 const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX) || 200;
 app.use('/api/', (req, res, next) => {
+  if (req.method === 'GET' && RATE_SKIP_PREFIXES.some(p => req.path.startsWith(p))) {
+    return next();
+  }
   const ip = (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
   const now = Date.now();
   let record = rateLimitMap.get(ip);
