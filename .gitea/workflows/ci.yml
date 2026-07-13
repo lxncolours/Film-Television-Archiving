@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  # 第一关：安装依赖 + 全量语法检查（不依赖外部服务，跑得最快）
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js 24（与 Dockerfile 一致）
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: 切换 npm 国内镜像源（加速）
+        run: npm config set registry https://registry.npmmirror.com
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 语法检查（node --check 全部服务端 JS）
+        run: |
+          set -e
+          find server -name '*.js' -not -path '*/node_modules/*' -exec node --check {} \;
+
+  # 第二关：集成冒烟测试，起真实 MySQL + Redis，验证建表与服务启动
+  integration:
+    needs: test
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: rootpass
+          MYSQL_DATABASE: movie_archive
+        ports:
+          - 3306:3306
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    env:
+      DB_HOST: mysql
+      DB_USER: root
+      DB_PASSWORD: rootpass
+      DB_NAME: movie_archive
+      DB_PORT: '3306'
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+      PORT: '5280'
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: 切换 npm 国内镜像源
+        run: npm config set registry https://registry.npmmirror.com
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 等待 MySQL / Redis 就绪
+        run: |
+          for i in $(seq 1 30); do (echo > /dev/tcp/mysql/3306) >/dev/null 2>&1 && break; echo "waiting mysql $i"; sleep 2; done
+          for i in $(seq 1 30); do (echo > /dev/tcp/redis/6379) >/dev/null 2>&1 && break; echo "waiting redis $i"; sleep 2; done
+
+      - name: 初始化数据库表结构
+        run: npm run init-db
+
+      - name: 启动服务并做健康检查
+        run: |
+          node server/server.js > /tmp/server.log 2>&1 &
+          SRV=$!
+          ok=0
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5280/api/health)
+            if [ "$code" = "200" ]; then ok=1; break; fi
+            sleep 2
+          done
+          echo "--- /api/health 响应 ---"
+          curl -s http://localhost:5280/api/health; echo
+          kill $SRV 2>/dev/null || true
+          if [ "$ok" != "1" ]; then echo "健康检查失败"; echo "--- server.log ---"; cat /tmp/server.log; exit 1; fi
