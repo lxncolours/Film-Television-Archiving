@@ -2060,7 +2060,9 @@
             if (!movie) return '';
             if (movie.has_poster_data) return `/api/movies/poster/${movie.id}/image`;
             if (!movie.poster || movie.poster === '_not_found_') return '';
-            if (movie.poster.includes('doubanio.com') || movie.poster.includes('douban.com')) {
+            // 外链海报（TMDB / 豆瓣等）统一经后端代理拉取，避免浏览器直连外网
+            // （国内网络直连 image.tmdb.org 不稳定/超时，会导致翻页时整页卡顿）
+            if (/^https?:\/\//i.test(movie.poster)) {
                 return `/api/proxy/image?url=${encodeURIComponent(movie.poster)}`;
             }
             return movie.poster;
