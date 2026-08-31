@@ -35,10 +35,29 @@ async function migrate() {
   }
 
   if (!colNames.includes('tags')) {
-    await conn.query("ALTER TABLE movies ADD COLUMN tags VARCHAR(500) DEFAULT '' AFTER category");
-    console.log('Added column: tags');
+    await conn.query("ALTER TABLE movies ADD COLUMN tags JSON DEFAULT NULL AFTER category");
+    console.log('Added column: tags (JSON)');
   } else {
-    console.log('Column tags already exists');
+    const tagsCol = cols.find(c => c.Field === 'tags');
+    if (tagsCol && tagsCol.Type.toLowerCase() !== 'json') {
+      // 历史迁移把 tags 建为 VARCHAR，统一转为 JSON 才能使用 JSON_OVERLAPS 做标签筛选
+      try {
+        await conn.query(`
+          UPDATE movies SET tags = CASE
+            WHEN tags IS NULL OR tags = '' THEN '[]'
+            WHEN tags LIKE '[%' THEN tags
+            ELSE CONCAT('["', REPLACE(REPLACE(REPLACE(tags, '，', ','), '、', ','), ',', '","'), '"]')
+          END
+        `);
+        await conn.query("ALTER TABLE movies MODIFY COLUMN tags JSON DEFAULT NULL");
+        console.log('Migrated column tags to JSON type');
+      } catch (e) {
+        console.error('Failed to migrate tags column to JSON:', e.message);
+        console.error('Please check movies.tags values manually, they must be valid JSON arrays');
+      }
+    } else {
+      console.log('Column tags already JSON');
+    }
   }
 
   console.log('Migration completed successfully');

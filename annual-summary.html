@@ -137,6 +137,53 @@
             font-weight: 500;
         }
 
+        /* ===== Summary Charts ===== */
+        .summary-charts {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .chart-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 0.8rem;
+            padding: 1rem 1.1rem;
+        }
+        .chart-card.span-2 { grid-column: span 2; }
+        .chart-card.span-4 { grid-column: span 4; }
+        .chart-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 0.8rem;
+        }
+        .chart-body { width: 100%; }
+        .chart-body svg { width: 100%; height: auto; display: block; }
+        .bw-bar { fill: var(--accent); transition: opacity .2s; }
+        .bw-bar:hover { opacity: .75; }
+        .bw-axis-label { fill: var(--text-secondary); font-size: 9px; }
+        .bw-bar-label { fill: var(--text); font-size: 9px; font-weight: 600; }
+        .bw-type-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.78rem; }
+        .bw-type-name { width: 3.5rem; color: var(--text-secondary); flex-shrink: 0; }
+        .bw-type-track { flex: 1; height: 0.7rem; background: var(--border); border-radius: 0.4rem; overflow: hidden; }
+        .bw-type-fill { height: 100%; background: var(--accent); border-radius: 0.4rem; }
+        .bw-type-count { width: 2rem; text-align: right; color: var(--text); }
+        .bw-bestworst { display: flex; gap: 1rem; flex-wrap: wrap; }
+        .bw-bw-item { flex: 1; min-width: 140px; padding: 0.7rem 0.9rem; border-radius: 0.6rem; }
+        .bw-bw-item.best { background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.3); }
+        .bw-bw-item.worst { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.28); }
+        .bw-bw-label { font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 0.2rem; }
+        .bw-bw-title { font-size: 0.95rem; font-weight: 600; color: var(--text); margin-bottom: 0.15rem; }
+        .bw-bw-rating { font-size: 0.8rem; font-weight: 600; }
+        .bw-bw-item.best .bw-bw-rating { color: #22c55e; }
+        .bw-bw-item.worst .bw-bw-rating { color: #ef4444; }
+
+        @media (max-width: 768px) {
+            .summary-charts { grid-template-columns: repeat(2, 1fr); }
+            .chart-card.span-2, .chart-card.span-4 { grid-column: span 2; }
+        }
+
         /* Compact Poster Grid */
         .movie-grid {
             display: grid;
@@ -293,6 +340,24 @@
             <div class="stat-card"><div class="stat-value" id="statSeries">-</div><div class="stat-label">剧集</div></div>
         </div>
         <div class="platform-stats" id="platformStats"></div>
+        <div class="summary-charts" id="summaryCharts">
+            <div class="chart-card span-2">
+                <div class="chart-title">月度观影趋势</div>
+                <div class="chart-body" id="monthlyChart"></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">评分分布</div>
+                <div class="chart-body" id="ratingChart"></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">类型分布</div>
+                <div class="chart-body" id="typeChart"></div>
+            </div>
+            <div class="chart-card span-4">
+                <div class="chart-title">年度之最</div>
+                <div class="chart-body" id="bestWorst"></div>
+            </div>
+        </div>
         <div class="movie-grid" id="movieGrid">
             <div class="empty-state"><p style="color:var(--text-secondary)">加载中...</p></div>
         </div>
@@ -368,6 +433,49 @@
             }
         }
 
+        // 通用竖向柱状图（SVG）
+        function renderVerticalBarChart(el, items) {
+            if (!items || items.length === 0) { el.innerHTML = '<p style="color:var(--text-secondary);font-size:0.8rem">暂无数据</p>'; return; }
+            const W = 360, H = 150, padB = 22, padT = 18, padX = 6;
+            const n = items.length;
+            const max = Math.max(1, ...items.map(i => i.value));
+            const slot = (W - padX * 2) / n;
+            const barW = slot * 0.62;
+            const chartH = H - padB - padT;
+            let bars = '';
+            items.forEach((it, idx) => {
+                const h = Math.max((it.value / max) * chartH, 0.5);
+                const x = padX + idx * slot + (slot - barW) / 2;
+                const y = padT + (chartH - h);
+                bars += `<rect class="bw-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2"></rect>`;
+                if (it.value > 0) bars += `<text class="bw-bar-label" x="${(x + barW / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="middle">${it.value}</text>`;
+                bars += `<text class="bw-axis-label" x="${(x + barW / 2).toFixed(1)}" y="${(H - 6).toFixed(1)}" text-anchor="middle">${it.label}</text>`;
+            });
+            el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img">${bars}</svg>`;
+        }
+
+        function renderTypeChart(el, typeDist) {
+            if (!typeDist || typeDist.length === 0) { el.innerHTML = '<p style="color:var(--text-secondary);font-size:0.8rem">暂无数据</p>'; return; }
+            const max = Math.max(1, ...typeDist.map(t => t.count));
+            el.innerHTML = typeDist.map(t => `
+                <div class="bw-type-row">
+                    <span class="bw-type-name">${escapeHtml(t.type)}</span>
+                    <span class="bw-type-track"><span class="bw-type-fill" style="width:${(t.count / max * 100).toFixed(1)}%"></span></span>
+                    <span class="bw-type-count">${t.count}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderBestWorst(el, best, worst) {
+            const bestHtml = best
+                ? `<div class="bw-bw-item best"><div class="bw-bw-label">年度最佳</div><div class="bw-bw-title">${escapeHtml(best.title)}</div><div class="bw-bw-rating">★ ${Number(best.rating).toFixed(1)}</div></div>`
+                : `<div class="bw-bw-item best"><div class="bw-bw-label">年度最佳</div><div class="bw-bw-title">—</div></div>`;
+            const worstHtml = worst
+                ? `<div class="bw-bw-item worst"><div class="bw-bw-label">年度最差</div><div class="bw-bw-title">${escapeHtml(worst.title)}</div><div class="bw-bw-rating">★ ${Number(worst.rating).toFixed(1)}</div></div>`
+                : `<div class="bw-bw-item worst"><div class="bw-bw-label">年度最差</div><div class="bw-bw-title">—</div></div>`;
+            el.innerHTML = `<div class="bw-bestworst">${bestHtml}${worstHtml}</div>`;
+        }
+
         async function loadYear(year) {
             currentYear = year;
             const grid = document.getElementById('movieGrid');
@@ -394,6 +502,18 @@
             } else {
                 platEl.innerHTML = '';
             }
+
+            // 图表
+            renderVerticalBarChart(
+                document.getElementById('monthlyChart'),
+                (data.monthly || []).map(m => ({ label: m.month + '月', value: m.count }))
+            );
+            renderVerticalBarChart(
+                document.getElementById('ratingChart'),
+                (data.ratingDist || []).map(b => ({ label: b.label, value: b.count }))
+            );
+            renderTypeChart(document.getElementById('typeChart'), data.typeDist || []);
+            renderBestWorst(document.getElementById('bestWorst'), data.best, data.worst);
 
             if (data.movies.length === 0) {
                 grid.innerHTML = '<div class="empty-state"><p>该年份暂无记录</p></div>';

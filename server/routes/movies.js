@@ -22,6 +22,24 @@ function normalizeDate(dateStr) {
   return dateStr.replace(/\//g, '-');
 }
 
+// 将任意形态的 tags 统一解析为字符串数组：JSON 数组 / 数组 / 逗号分隔字符串 / null
+function parseTags(tags) {
+  if (!tags) return [];
+  if (Array.isArray(tags)) return tags.filter(Boolean).map(String);
+  if (typeof tags === 'string') {
+    const trimmed = tags.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.filter(Boolean).map(String);
+    } catch {
+      // 非 JSON，按分隔符切分
+    }
+    return trimmed.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 function normalizeDateTime(dt) {
   if (!dt) return new Date();
   if (dt instanceof Date) return dt;
@@ -33,14 +51,16 @@ function normalizeDateTime(dt) {
 
 router.get('/', async (req, res) => {
   try {
-    const { search, type, year, platform, country, sort = 'dateDesc', page = 1, per_page = 20 } = req.query;
+    const { search, type, year, platform, country, category, tag, sort = 'dateDesc', page = 1, per_page = 20 } = req.query;
     
     const typeList = parseArrayParam(type);
     const yearList = parseArrayParam(year);
     const platformList = parseArrayParam(platform);
     const countryList = parseArrayParam(country);
+    const categoryList = parseArrayParam(category);
+    const tagList = parseArrayParam(tag);
     
-    logger.info(`[Movies] GET / list search="${search || ''}" type=${typeList.join(',')} year=${yearList.join(',')} platform=${platformList.join(',')} country=${countryList.join(',')} sort=${sort} page=${page} per_page=${per_page}`);
+    logger.info(`[Movies] GET / list search="${search || ''}" type=${typeList.join(',')} year=${yearList.join(',')} platform=${platformList.join(',')} country=${countryList.join(',')} category=${categoryList.join(',')} tag=${tagList.join(',')} sort=${sort} page=${page} per_page=${per_page}`);
     
     const cacheKey = cache.makeKey('list', { 
       search: search || '', 
@@ -48,6 +68,8 @@ router.get('/', async (req, res) => {
       year: yearList.sort().join(','), 
       platform: platformList.sort().join(','), 
       country: countryList.sort().join(','), 
+      category: categoryList.sort().join(','),
+      tag: tagList.sort().join(','),
       sort: sort || 'dateDesc', 
       page, 
       per_page 
@@ -66,7 +88,7 @@ router.get('/', async (req, res) => {
 
     const offset = (pageNum - 1) * perPageNum;
     
-    let sql = 'SELECT id, title, altTitle, year, country, type, category, platform, rating, poster, poster_mime, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt, (poster_data IS NOT NULL AND poster_data != \'\') as has_poster_data FROM movies WHERE 1=1';
+    let sql = 'SELECT id, title, altTitle, year, country, type, category, tags, platform, rating, poster, poster_mime, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt, (poster_data IS NOT NULL AND poster_data != \'\') as has_poster_data FROM movies WHERE 1=1';
     let countSql = 'SELECT COUNT(*) as total FROM movies WHERE 1=1';
     const params = [];
     const countParams = [];
@@ -102,6 +124,20 @@ router.get('/', async (req, res) => {
       params.push(countryList);
       countParams.push(countryList);
     }
+    if (categoryList.length > 0) {
+      sql += ' AND category IN (?)';
+      countSql += ' AND category IN (?)';
+      params.push(categoryList);
+      countParams.push(categoryList);
+    }
+    if (tagList.length > 0) {
+      // tags 为 JSON 数组，JSON_OVERLAPS 匹配"包含任一所选标签"；tags 为 NULL 时不命中
+      sql += ' AND JSON_OVERLAPS(tags, ?)';
+      countSql += ' AND JSON_OVERLAPS(tags, ?)';
+      const tagJson = JSON.stringify(tagList);
+      params.push(tagJson);
+      countParams.push(tagJson);
+    }
 
     const sortClause = sortConfig.movies[sort];
     if (!sortClause) {
@@ -123,6 +159,7 @@ router.get('/', async (req, res) => {
       has_poster_data: row.has_poster_data === 1 || row.has_poster_data === true,
       rating: row.rating ? Number(row.rating) : 0,
       year: row.year ? Number(row.year) : 0,
+      tags: parseTags(row.tags),
     }));
 
     res.json({ 
@@ -155,6 +192,49 @@ router.get('/countries', async (req, res) => {
     res.json({ success: true, data: rows.map(r => r.name) });
   } catch (err) {
     logger.error(`[Movies] GET /countries error: ${err.message}`);
+    res.status(500).json({ success: false, message: '服务器内部错误' });
+  }
+});
+
+// 聚合所有标签（含每标签使用次数），供筛选面板动态渲染
+// 注意：必须定义在 /:id 之前，否则会被 /:id 路由拦截
+router.get('/tags', async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT tags FROM movies WHERE tags IS NOT NULL AND tags != ''");
+    const counter = new Map();
+    for (const row of rows) {
+      for (const tag of parseTags(row.tags)) {
+        counter.set(tag, (counter.get(tag) || 0) + 1);
+      }
+    }
+    const data = [...counter.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh'));
+    logger.info(`[Movies] GET /tags result count=${data.length}`);
+    res.json({ success: true, data });
+  } catch (err) {
+    logger.error(`[Movies] GET /tags error: ${err.message}`);
+    res.status(500).json({ success: false, message: '服务器内部错误' });
+  }
+});
+
+// 聚合所有分类（category 为逗号分隔字符串，需拆分统计）
+router.get('/categories', async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT category FROM movies WHERE category IS NOT NULL AND category != ''");
+    const counter = new Map();
+    for (const row of rows) {
+      for (const c of String(row.category).split(/[,，、]/).map(s => s.trim()).filter(Boolean)) {
+        counter.set(c, (counter.get(c) || 0) + 1);
+      }
+    }
+    const data = [...counter.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh'));
+    logger.info(`[Movies] GET /categories result count=${data.length}`);
+    res.json({ success: true, data });
+  } catch (err) {
+    logger.error(`[Movies] GET /categories error: ${err.message}`);
     res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 });
@@ -214,7 +294,7 @@ router.get('/annual/:year', async (req, res) => {
 
     // All movies for the year
     const [rows] = await pool.query(
-      "SELECT id, title, type, platform, rating, poster, poster_mime, tmdbUrl, (poster_data IS NOT NULL AND poster_data != '') as has_poster_data FROM movies WHERE LEFT(archiveDate, 4) = ? ORDER BY archiveDate DESC, id DESC",
+      "SELECT id, title, type, platform, rating, archiveDate, poster, poster_mime, tmdbUrl, (poster_data IS NOT NULL AND poster_data != '') as has_poster_data FROM movies WHERE LEFT(archiveDate, 4) = ? ORDER BY archiveDate DESC, id DESC",
       [year]
     );
 
@@ -222,6 +302,55 @@ router.get('/annual/:year', async (req, res) => {
       ...row,
       has_poster_data: row.has_poster_data === 1 || row.has_poster_data === true,
     }));
+
+    // ===== 月度趋势：统计 1-12 月每月归档数量 =====
+    const monthlyMap = new Map();
+    for (let m = 1; m <= 12; m++) monthlyMap.set(m, 0);
+    let mostProductiveMonth = { month: 0, count: 0 };
+    for (const row of rows) {
+      if (!row.archiveDate) continue;
+      const m = parseInt(String(row.archiveDate).slice(5, 7), 10);
+      if (m >= 1 && m <= 12) {
+        const c = (monthlyMap.get(m) || 0) + 1;
+        monthlyMap.set(m, c);
+        if (c > mostProductiveMonth.count) mostProductiveMonth = { month: m, count: c };
+      }
+    }
+    const monthly = [...monthlyMap.entries()].map(([month, count]) => ({ month, count }));
+
+    // ===== 评分分布：按 [0-6) [6-7) [7-8) [8-9) [9-10] 分桶 =====
+    const ratingBuckets = [
+      { label: '<6', min: 0, max: 6, count: 0 },
+      { label: '6-7', min: 6, max: 7, count: 0 },
+      { label: '7-8', min: 7, max: 8, count: 0 },
+      { label: '8-9', min: 8, max: 9, count: 0 },
+      { label: '9-10', min: 9, max: 10.01, count: 0 },
+    ];
+    let ratedCount = 0;
+    for (const row of rows) {
+      const r = Number(row.rating);
+      if (!r || r <= 0) continue;
+      ratedCount++;
+      for (const b of ratingBuckets) {
+        if (r >= b.min && r < b.max) { b.count++; break; }
+      }
+    }
+
+    // ===== 类型分布 =====
+    const typeMap = new Map();
+    for (const row of rows) {
+      const t = row.type || '未知';
+      typeMap.set(t, (typeMap.get(t) || 0) + 1);
+    }
+    const typeDist = [...typeMap.entries()]
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // ===== 年度最佳 / 最差（按评分） =====
+    const rated = rows.filter(r => Number(r.rating) > 0)
+      .sort((a, b) => Number(b.rating) - Number(a.rating));
+    const best = rated.length ? { id: rated[0].id, title: rated[0].title, rating: Number(rated[0].rating) } : null;
+    const worst = rated.length ? { id: rated[rated.length - 1].id, title: rated[rated.length - 1].title, rating: Number(rated[rated.length - 1].rating) } : null;
 
     logger.info(`[Movies] GET /annual/${year} result total=${total[0].total} movies=${parsed.length}`);
 
@@ -234,6 +363,13 @@ router.get('/annual/:year', async (req, res) => {
         movieCount: movies[0].count,
         seriesCount: series[0].count,
         platforms: platforms,
+        monthly,
+        mostProductiveMonth,
+        ratingDist: ratingBuckets,
+        ratedCount,
+        typeDist,
+        best,
+        worst,
         movies: parsed,
       }
     });
@@ -341,7 +477,7 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { title, altTitle, year, country, type, category, platform, rating, poster, tmdbUrl, archiveDate, notes } = req.body;
+    const { title, altTitle, year, country, type, category, tags, platform, rating, poster, tmdbUrl, archiveDate, notes } = req.body;
 
     if (!title || !type || !platform || !archiveDate) {
       return res.status(400).json({ success: false, message: '请填写必填项' });
@@ -351,9 +487,12 @@ router.post('/', async (req, res) => {
 
     await ensureCountryExists(country);
 
+    // tags 为 JSON 列，必须写入合法 JSON（空数组而非空字符串）
+    const tagsJson = JSON.stringify(parseTags(tags));
+
     const [result] = await pool.query(
-      `INSERT INTO movies (title, altTitle, year, country, type, category, platform, rating, poster, tmdbUrl, archiveDate, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [title, altTitle || '', year || 0, country || '', type, category || '', platform, rating || 0, poster || '', tmdbUrl || '', normalizeDate(archiveDate), notes || '']
+      `INSERT INTO movies (title, altTitle, year, country, type, category, tags, platform, rating, poster, tmdbUrl, archiveDate, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [title, altTitle || '', year || 0, country || '', type, category || '', tagsJson, platform, rating || 0, poster || '', tmdbUrl || '', normalizeDate(archiveDate), notes || '']
     );
 
     await cache.flushMovies();
@@ -366,7 +505,7 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { title, altTitle, year, country, type, category, platform, rating, poster, tmdbUrl, archiveDate, notes } = req.body;
+    const { title, altTitle, year, country, type, category, tags, platform, rating, poster, tmdbUrl, archiveDate, notes } = req.body;
 
     if (!title || !type || !platform || !archiveDate) {
       return res.status(400).json({ success: false, message: '请填写必填项' });
@@ -374,7 +513,7 @@ router.put('/:id', async (req, res) => {
 
     logger.info(`[Movies] PUT /${req.params.id} update title="${title}" type=${type} platform=${platform} year=${year} country=${country} category=${category}`);
 
-    const [currentRows] = await pool.query('SELECT poster, poster_data FROM movies WHERE id = ?', [req.params.id]);
+    const [currentRows] = await pool.query('SELECT poster, poster_data, tags FROM movies WHERE id = ?', [req.params.id]);
     const currentPoster = currentRows[0]?.poster || '';
     const hadPosterData = !!currentRows[0]?.poster_data;
     
@@ -387,9 +526,17 @@ router.put('/:id', async (req, res) => {
 
     await ensureCountryExists(country);
 
+    // tags 未提供时保持原值，避免旧版前端 / 部分更新把已有标签清空
+    const tagsJson = tags !== undefined ? JSON.stringify(parseTags(tags)) : null;
+    const tagsSql = tagsJson !== null ? ', tags=?' : '';
+
+    const updateParams = [title, altTitle || '', year || 0, country || '', type, category || ''];
+    if (tagsJson !== null) updateParams.push(tagsJson);
+    updateParams.push(platform, rating || 0, poster || '', tmdbUrl || '', normalizeDate(archiveDate), notes || '', req.params.id);
+
     await pool.query(
-      `UPDATE movies SET title=?, altTitle=?, year=?, country=?, type=?, category=?, platform=?, rating=?, poster=?, tmdbUrl=?, archiveDate=?, notes=?${posterDataSql} WHERE id=?`,
-      [title, altTitle || '', year || 0, country || '', type, category || '', platform, rating || 0, poster || '', tmdbUrl || '', normalizeDate(archiveDate), notes || '', req.params.id]
+      `UPDATE movies SET title=?, altTitle=?, year=?, country=?, type=?, category=?${tagsSql}, platform=?, rating=?, poster=?, tmdbUrl=?, archiveDate=?, notes=?${posterDataSql} WHERE id=?`,
+      updateParams
     );
 
     const updatedData = {
@@ -399,6 +546,7 @@ router.put('/:id', async (req, res) => {
       country: country || '',
       type,
       category: category || '',
+      tags: tags !== undefined ? parseTags(tags) : parseTags(currentRows[0]?.tags),
       platform,
       rating: rating || 0,
       poster: poster || '',

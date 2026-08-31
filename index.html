@@ -364,6 +364,23 @@
             background: rgba(255,255,255,0.1);
             font-size: 0.65rem;
         }
+        .card-overlay .card-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            margin-top: 0.35rem;
+        }
+        .card-overlay .card-tag {
+            padding: 0.08rem 0.4rem;
+            background: rgba(99,102,241,0.35);
+            color: #fff;
+            font-size: 0.6rem;
+            border-radius: 0.3rem;
+            line-height: 1.4;
+        }
+        .card-overlay .card-tag.more {
+            background: rgba(255,255,255,0.18);
+        }
 
         .type-tag {
             position: absolute;
@@ -1698,6 +1715,18 @@
                 </div>
             </div>
             <div class="filter-group">
+                <div class="filter-group-label">分类</div>
+                <div class="filter-chips" id="categoryFilter">
+                    <span class="chip active" data-value="all">全部</span>
+                </div>
+            </div>
+            <div class="filter-group">
+                <div class="filter-group-label">标签</div>
+                <div class="filter-chips" id="tagFilter">
+                    <span class="chip active" data-value="all">全部</span>
+                </div>
+            </div>
+            <div class="filter-group">
                 <div class="filter-group-label">排序</div>
                 <div class="filter-sort">
                     <select id="sortSelect">
@@ -1963,6 +1992,10 @@
                             <label class="form-label">分类</label>
                             <input type="text" class="form-input" id="category" placeholder="如：动作, 剧情">
                         </div>
+                        <div class="form-group">
+                            <label class="form-label">标签</label>
+                            <input type="text" class="form-input" id="tags" placeholder="用逗号分隔，如：高分, 经典, 科幻">
+                        </div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label class="form-label">TMDB链接</label>
@@ -2037,7 +2070,7 @@
 
         let movies = [];
         let pagination = { page: 1, per_page: 21, total: 0, total_pages: 0 };
-        let filters = { search: '', type: [], year: [], platform: [], country: [] };
+        let filters = { search: '', type: [], year: [], platform: [], country: [], category: [], tag: [] };
         let editingId = null;
         let searchTimeout = null;
         let isLoading = false;
@@ -2179,6 +2212,86 @@
                         applyFilters();
                     });
                     countryFilter.appendChild(chip);
+                });
+            }
+        }
+
+        // 动态渲染分类筛选（category 为逗号分隔字符串，后端 /api/movies/categories 已拆分统计）
+        async function fetchCategories() {
+            const d = await apiGet(`${API_BASE}/movies/categories`);
+            if (d.success && d.data) {
+                const container = document.getElementById('categoryFilter');
+                container.innerHTML = '';
+                const allChip = document.createElement('span');
+                allChip.className = 'chip active';
+                allChip.dataset.value = 'all';
+                allChip.textContent = '全部';
+                allChip.addEventListener('click', () => {
+                    document.querySelectorAll('#categoryFilter .chip').forEach(x => x.classList.remove('active'));
+                    allChip.classList.add('active');
+                    filters.category = [];
+                    applyFilters();
+                });
+                container.appendChild(allChip);
+
+                d.data.forEach(c => {
+                    const chip = document.createElement('span');
+                    chip.className = 'chip';
+                    chip.dataset.value = c.name;
+                    chip.textContent = c.count > 1 ? `${c.name} (${c.count})` : c.name;
+                    chip.addEventListener('click', () => {
+                        allChip.classList.remove('active');
+                        if (chip.classList.contains('active')) {
+                            chip.classList.remove('active');
+                            filters.category = filters.category.filter(v => v !== c.name);
+                        } else {
+                            chip.classList.add('active');
+                            filters.category.push(c.name);
+                        }
+                        if (filters.category.length === 0) allChip.classList.add('active');
+                        applyFilters();
+                    });
+                    container.appendChild(chip);
+                });
+            }
+        }
+
+        // 动态渲染标签筛选（tags 为 JSON 数组，后端 /api/movies/tags 已拆计数）
+        async function fetchTags() {
+            const d = await apiGet(`${API_BASE}/movies/tags`);
+            if (d.success && d.data) {
+                const container = document.getElementById('tagFilter');
+                container.innerHTML = '';
+                const allChip = document.createElement('span');
+                allChip.className = 'chip active';
+                allChip.dataset.value = 'all';
+                allChip.textContent = '全部';
+                allChip.addEventListener('click', () => {
+                    document.querySelectorAll('#tagFilter .chip').forEach(x => x.classList.remove('active'));
+                    allChip.classList.add('active');
+                    filters.tag = [];
+                    applyFilters();
+                });
+                container.appendChild(allChip);
+
+                d.data.forEach(t => {
+                    const chip = document.createElement('span');
+                    chip.className = 'chip';
+                    chip.dataset.value = t.name;
+                    chip.textContent = t.count > 1 ? `${t.name} (${t.count})` : t.name;
+                    chip.addEventListener('click', () => {
+                        allChip.classList.remove('active');
+                        if (chip.classList.contains('active')) {
+                            chip.classList.remove('active');
+                            filters.tag = filters.tag.filter(v => v !== t.name);
+                        } else {
+                            chip.classList.add('active');
+                            filters.tag.push(t.name);
+                        }
+                        if (filters.tag.length === 0) allChip.classList.add('active');
+                        applyFilters();
+                    });
+                    container.appendChild(chip);
                 });
             }
         }
@@ -2365,6 +2478,8 @@
             params.set('year', filters.year);
             params.set('platform', filters.platform);
             params.set('country', filters.country);
+            params.set('category', filters.category);
+            params.set('tag', filters.tag);
             params.set('sort', document.getElementById('sortSelect').value);
             params.set('page', pagination.page);
             params.set('per_page', pagination.per_page);
@@ -2450,6 +2565,27 @@
             return `<div class="pagination">${html}</div>`;
         }
 
+        function toTagArray(tags) {
+            if (!tags) return [];
+            if (Array.isArray(tags)) return tags.filter(Boolean).map(String);
+            if (typeof tags === 'string') {
+                try {
+                    const p = JSON.parse(tags);
+                    if (Array.isArray(p)) return p.filter(Boolean).map(String);
+                } catch { /* not JSON */ }
+                return tags.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+            }
+            return [];
+        }
+
+        function renderCardTags(tags) {
+            const arr = toTagArray(tags);
+            if (arr.length === 0) return '';
+            const chips = arr.slice(0, 4).map(t => `<span class="card-tag">${escapeHtml(t)}</span>`).join('');
+            const more = arr.length > 4 ? `<span class="card-tag more">+${arr.length - 4}</span>` : '';
+            return `<div class="card-tags">${chips}${more}</div>`;
+        }
+
         function renderMovies() {
             const grid = document.getElementById('movieGrid');
             document.getElementById('filteredCount').textContent = pagination.total;
@@ -2486,6 +2622,7 @@
                                 <span>${safeYear}</span>
                                 <span class="platform-tag">${safePlatform}</span>
                             </div>
+                            ${renderCardTags(movie.tags)}
                         </div>
                     </div>
                 </div>
@@ -2538,6 +2675,7 @@
                         <div class="detail-row"><div class="detail-label">地区</div><div class="detail-value">${escapeHtml(movie.country||'未知')}</div></div>
                         <div class="detail-row"><div class="detail-label">平台</div><div class="detail-value">${escapeHtml(movie.platform)}</div></div>
                         <div class="detail-row"><div class="detail-label">分类</div><div class="detail-value"><div style="display:flex;flex-wrap:wrap;gap:0.4rem">${category||'<span style="color:var(--text-secondary)">无</span>'}</div></div></div>
+                        <div class="detail-row"><div class="detail-label">标签</div><div class="detail-value"><div style="display:flex;flex-wrap:wrap;gap:0.4rem">${(() => { const t = toTagArray(movie.tags); return t.length ? t.map(x => `<span class="movie-tag" style="padding:0.2rem 0.5rem;background:var(--accent-dim);font-size:0.75rem;color:var(--text)">${escapeHtml(x.trim())}</span>`).join('') : '<span style="color:var(--text-secondary)">无</span>'; })()}</div></div></div>
                         <div class="detail-row"><div class="detail-label">归档</div><div class="detail-value">${escapeHtml(movie.archiveDate)}</div></div>
                         ${notesHTML}
                     </div>
@@ -2600,6 +2738,7 @@
                     document.getElementById('rating').value = movieData.rating ? Math.round(Number(movieData.rating)) : '';
                     document.getElementById('platform').value = movieData.platform;
                     document.getElementById('category').value = movieData.category || '';
+                    document.getElementById('tags').value = toTagArray(movieData.tags).join(', ');
                     document.getElementById('tmdbUrl').value = movieData.tmdbUrl || '';
                     document.getElementById('archiveDate').value = (movieData.archiveDate || '').replace(/\//g, '-');
                     document.getElementById('poster').value = movieData.poster || '';
@@ -2622,6 +2761,7 @@
             document.getElementById('rating').value = movie.rating ? Math.round(Number(movie.rating)) : '';
             document.getElementById('platform').value = movie.platform;
             document.getElementById('category').value = movie.category || '';
+            document.getElementById('tags').value = toTagArray(movie.tags).join(', ');
             document.getElementById('tmdbUrl').value = movie.tmdbUrl || '';
             document.getElementById('archiveDate').value = (movie.archiveDate || '').replace(/\//g, '-');
             document.getElementById('poster').value = movie.poster || '';
@@ -2683,6 +2823,7 @@
                 year: document.getElementById('year').value ? parseInt(document.getElementById('year').value) : 0,
                 country: document.getElementById('country').value.trim(), type,
                 category: document.getElementById('category').value.trim(),
+                tags: document.getElementById('tags').value.trim(),
                 rating, platform, tmdbUrl: document.getElementById('tmdbUrl').value.trim(),
                 archiveDate, poster: document.getElementById('poster').value.trim(),
                 notes: document.getElementById('notes').value.trim()
@@ -2866,7 +3007,7 @@
             }));
             document.getElementById('sortSelect').addEventListener('change', () => applyFilters());
             document.getElementById('resetBtn').addEventListener('click', () => {
-                filters = { search: '', type: [], year: [], platform: [], country: [] };
+                filters = { search: '', type: [], year: [], platform: [], country: [], category: [], tag: [] };
                 document.getElementById('searchInput').value = '';
                 document.querySelectorAll('.chip').forEach(c => { c.classList.remove('active'); if (c.dataset.value === 'all') c.classList.add('active'); });
                 document.getElementById('sortSelect').value = 'dateDesc';
@@ -2948,6 +3089,8 @@
             renderMovies();
             fetchStats();
             fetchCountries();
+            fetchCategories();
+            fetchTags();
             loadNetworkInfo();
         }
 
