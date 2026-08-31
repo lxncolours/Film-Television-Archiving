@@ -14,6 +14,7 @@ async function getClient() {
   connectingPromise = (async () => {
     const c = redis.createClient({
       disableOfflineQueue: true,
+      password: process.env.REDIS_PASSWORD || undefined,
       socket: { host: process.env.REDIS_HOST || '127.0.0.1', port: parseInt(process.env.REDIS_PORT) || 6379, reconnectStrategy: false }
     });
     c.on('error', (err) => { logger.debug('Redis client error:', err.message); client = null; });
