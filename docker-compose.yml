@@ -65,12 +65,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      # 海报文件系统存储（data/posters/），需持久化避免容器重建丢图
+      - poster_data:/app/data
     networks:
       - app-network
 
 volumes:
   mysql_data:
   redis_data:
+  poster_data:
 
 networks:
   app-network:

@@ -1650,13 +1650,19 @@
                             <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                             </svg>
-                            导出 JSON
+                            导出 JSON（元数据）
                         </button>
                         <button class="action-dropdown-item" onclick="exportCSV()">
                             <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                             </svg>
                             导出 CSV
+                        </button>
+                        <button class="action-dropdown-item" onclick="exportZIP()">
+                            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                            </svg>
+                            完整备份 ZIP（含海报）
                         </button>
                     </div>
                 </div>
@@ -1840,7 +1846,7 @@
             </div>
             <div id="importBody">
                 <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:1rem">
-                    选择之前导出的 JSON 文件进行导入，支持含海报数据的完整迁移。
+                    支持两种备份文件：JSON（元数据）或 ZIP 完整备份（含海报）。旧版含 base64 海报的 JSON 也兼容。
                 </p>
                 <div class="import-mode-select" id="importModeSelect">
                     <button class="import-mode-btn active" data-mode="append" onclick="setImportMode('append')">
@@ -2031,7 +2037,7 @@
 
     <!-- ===== Notification ===== -->
     <div class="notification" id="notification"></div>
-    <input type="file" class="file-input-hidden" id="importFileInput" accept=".json">
+    <input type="file" class="file-input-hidden" id="importFileInput" accept=".json,.zip">
 
     <div class="loading-dialog-overlay" id="loadingDialog">
         <div class="loading-dialog">
@@ -3097,6 +3103,7 @@
         // ===== Export =====
         let importMode = 'append';
         let importData = null;
+        let importZipBuffer = null;
 
         function toggleExportMenu(e) {
             e.stopPropagation();
@@ -3148,6 +3155,25 @@
             }
         }
 
+        async function exportZIP() {
+            document.getElementById('exportGroup').classList.remove('open');
+            showLoading('正在打包完整备份（含海报）...');
+            try {
+                const res = await fetch(`${API_BASE}/movies/export?format=zip`);
+                if (res.ok) {
+                    const blob = await res.blob();
+                    downloadBlob(blob, `movie-archive-backup-${new Date().toISOString().slice(0,10)}.zip`);
+                    showNotification(`完整备份导出成功（${(blob.size / 1024 / 1024).toFixed(1)} MB）`, 'success');
+                } else {
+                    showNotification('导出失败', 'error');
+                }
+            } catch {
+                showNotification('导出失败', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
         function downloadBlob(blob, filename) {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -3162,6 +3188,7 @@
         function triggerImport() {
             importMode = 'append';
             importData = null;
+            importZipBuffer = null;
             document.getElementById('importFileLabel').textContent = '选择文件...';
             document.getElementById('importPreview').style.display = 'none';
             document.getElementById('importPreview').innerHTML = '';
@@ -3174,6 +3201,7 @@
         function closeImportModal() {
             document.getElementById('importModal').classList.remove('open');
             importData = null;
+            importZipBuffer = null;
         }
 
         function setImportMode(mode) {
@@ -3190,6 +3218,31 @@
         document.getElementById('importFileInput').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
+
+            // ZIP 完整备份：整包直接交给后端解析（metadata.json + posters/）
+            if (/\.zip$/i.test(file.name)) {
+                importZipBuffer = null;
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    importZipBuffer = ev.target.result;
+                    importData = null;
+                    document.getElementById('importFileLabel').textContent = `${file.name}（ZIP 完整备份，${(file.size / 1024 / 1024).toFixed(1)} MB）`;
+                    document.getElementById('importConfirm').disabled = false;
+                    const previewEl = document.getElementById('importPreview');
+                    previewEl.innerHTML = '<div style="font-size:0.8rem;color:var(--text-secondary);padding:0.6rem 0">ZIP 完整备份：影片元数据与海报将一并导入，导入后可查看明细。</div>';
+                    previewEl.style.display = 'block';
+                    document.getElementById('importStatus').textContent = '✅ 已选择 ZIP 备份文件';
+                    document.getElementById('importStatus').className = 'import-status success';
+                };
+                reader.onerror = function() {
+                    document.getElementById('importStatus').textContent = '❌ 文件读取失败';
+                    document.getElementById('importStatus').className = 'import-status error';
+                };
+                reader.readAsArrayBuffer(file);
+                e.target.value = '';
+                return;
+            }
+
             const reader = new FileReader();
             reader.onload = function(ev) {
                 try {
@@ -3207,6 +3260,7 @@
                         document.getElementById('importStatus').className = 'import-status error';
                         return;
                     }
+                    importZipBuffer = null;
                     importData = movies;
                     document.getElementById('importFileLabel').textContent = `${file.name} (${movies.length} 条)`;
                     document.getElementById('importConfirm').disabled = false;
@@ -3218,7 +3272,7 @@
                         const m = movies[i];
                         html += `<div class="import-preview-item">
                             <span class="idx">${i + 1}</span>
-                            <span class="poster-dot ${m.poster_data ? 'got' : ''}"></span>
+                            <span class="poster-dot ${m.poster_data || m.poster_file ? 'got' : ''}"></span>
                             <span class="info">
                                 <span class="title">${escapeHtml(m.title || '未知')}</span>
                                 <span class="meta">${escapeHtml(m.year || '')}${m.year && m.type ? ' · ' : ''}${escapeHtml(m.type || '')}${m.platform ? ' · ' + escapeHtml(m.platform) : ''}</span>
@@ -3230,7 +3284,8 @@
                     }
                     previewEl.innerHTML = html;
                     previewEl.style.display = 'block';
-                    document.getElementById('importStatus').textContent = `✅ 已读取 ${movies.length} 条记录，含海报: ${movies.filter(m => m.poster_data).length} 条`;
+                    const withPoster = movies.filter(m => m.poster_data || m.poster_file).length;
+                    document.getElementById('importStatus').textContent = `✅ 已读取 ${movies.length} 条记录，含海报: ${withPoster} 条`;
                     document.getElementById('importStatus').className = 'import-status success';
                 } catch {
                     document.getElementById('importStatus').textContent = '❌ 文件解析失败，请确认是有效的 JSON 文件';
@@ -3242,20 +3297,31 @@
         });
 
         async function confirmImport() {
-            if (!importData || importData.length === 0) return;
+            if (!importData && !importZipBuffer) return;
             const confirmBtn = document.getElementById('importConfirm');
             confirmBtn.disabled = true;
             confirmBtn.textContent = '导入中...';
             const statusEl = document.getElementById('importStatus');
-            statusEl.textContent = `正在导入 ${importData.length} 条记录...`;
             statusEl.className = 'import-status';
             try {
-                const d = await apiFetch(`${API_BASE}/movies/import`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ data: importData, mode: importMode }),
-                    timeout: 300000
-                });
+                let d;
+                if (importZipBuffer) {
+                    statusEl.textContent = '正在导入 ZIP 完整备份（元数据 + 海报）...';
+                    d = await apiFetch(`${API_BASE}/movies/import-zip?mode=${importMode}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/zip' },
+                        body: importZipBuffer,
+                        timeout: 600000
+                    });
+                } else {
+                    statusEl.textContent = `正在导入 ${importData.length} 条记录...`;
+                    d = await apiFetch(`${API_BASE}/movies/import`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ data: importData, mode: importMode }),
+                        timeout: 300000
+                    });
+                }
                 if (d.success) {
                     statusEl.textContent = `✅ ${d.message}`;
                     statusEl.className = 'import-status success';
