@@ -2081,6 +2081,7 @@
         let searchTimeout = null;
         let isLoading = false;
         let filterOpen = false;
+        let hideImages = false;
 
         function updatePerPage() {
             pagination.per_page = window.innerWidth <= 768 ? 20 : 21;
@@ -2097,6 +2098,7 @@
 
         function proxyImg(movie) {
             if (!movie) return '';
+            if (hideImages) return '';
             if (movie.has_poster_data) return `/api/movies/poster/${movie.id}/image`;
             if (!movie.poster || movie.poster === '_not_found_') return '';
             // 外链海报（TMDB / 豆瓣等）统一经后端代理拉取，避免浏览器直连外网
@@ -2306,6 +2308,7 @@
             try {
                 const d = await apiGet(`${API_BASE}/network/info`);
                 if (d.success && d.data) {
+                    hideImages = !!d.data.hideImages;
                     const safeNetUrl = safeUrl(d.data.networkUrl);
                     document.getElementById('networkUrl').innerHTML =
                         safeNetUrl ? `<a href="${safeNetUrl}" target="_blank" rel="noopener noreferrer">${escapeHtml(d.data.networkUrl)}</a>` : escapeHtml(d.data.networkUrl || '');
@@ -2611,7 +2614,7 @@
                 return `
                 <div class="movie-card" style="animation-delay:${i*0.04}s" onclick="openModal(${safeId})">
                     <div class="poster-wrap">
-                        ${(movie.has_poster_data || movie.poster) ? `
+                        ${(!hideImages && (movie.has_poster_data || movie.poster)) ? `
                             <img src="${proxyImg(movie)}" alt="${safeTitle}" loading="lazy"
                                 onerror="this.outerHTML=\`<div class=\\'poster-placeholder\\'><span class=\\'icon\\'>🎬</span><span class=\\'initial\\'>${safeInitial}</span></div>\`">
                         ` : `
@@ -2652,7 +2655,7 @@
             const notesHTML = movie.notes ? `
                 <div class="notes-section"><h4>备注</h4><p class="notes-text">"${escapeHtml(movie.notes)}"</p></div>
             ` : '';
-            const posterHTML = (movie.has_poster_data || movie.poster)
+            const posterHTML = (!hideImages && (movie.has_poster_data || movie.poster))
                 ? `<div class="modal-poster"><img src="${proxyImg(movie)}" alt="${safeTitle}" onerror="this.parentElement.innerHTML=''"></div>`
                 : '';
             const safeDoubanUrl = safeUrl(movie.doubanUrl);
@@ -3091,13 +3094,13 @@
             });
 
             pagination.page = getPageFromUrl();
+            await loadNetworkInfo();
             await fetchMovies();
             renderMovies();
             fetchStats();
             fetchCountries();
             fetchCategories();
             fetchTags();
-            loadNetworkInfo();
         }
 
         // ===== Export =====
@@ -3272,7 +3275,7 @@
                         const m = movies[i];
                         html += `<div class="import-preview-item">
                             <span class="idx">${i + 1}</span>
-                            <span class="poster-dot ${m.poster_data || m.poster_file ? 'got' : ''}"></span>
+                            <span class="poster-dot ${m.poster_data ? 'got' : ''}"></span>
                             <span class="info">
                                 <span class="title">${escapeHtml(m.title || '未知')}</span>
                                 <span class="meta">${escapeHtml(m.year || '')}${m.year && m.type ? ' · ' : ''}${escapeHtml(m.type || '')}${m.platform ? ' · ' + escapeHtml(m.platform) : ''}</span>
@@ -3284,7 +3287,7 @@
                     }
                     previewEl.innerHTML = html;
                     previewEl.style.display = 'block';
-                    const withPoster = movies.filter(m => m.poster_data || m.poster_file).length;
+                    const withPoster = movies.filter(m => m.poster_data).length;
                     document.getElementById('importStatus').textContent = `✅ 已读取 ${movies.length} 条记录，含海报: ${withPoster} 条`;
                     document.getElementById('importStatus').className = 'import-status success';
                 } catch {

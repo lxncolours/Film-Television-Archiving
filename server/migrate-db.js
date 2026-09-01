@@ -60,14 +60,6 @@ async function migrate() {
     }
   }
 
-  if (!colNames.includes('poster_file')) {
-    // 海报二进制从 DB BLOB 迁到本地文件系统后，DB 只存文件名（sha1.ext）
-    await conn.query("ALTER TABLE movies ADD COLUMN poster_file VARCHAR(64) DEFAULT NULL AFTER poster_mime");
-    console.log('Added column: poster_file');
-  } else {
-    console.log('Column poster_file already exists');
-  }
-
   console.log('Migration completed successfully');
   await conn.end();
 }

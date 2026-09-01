@@ -33,6 +33,16 @@ const proxyConfig = require('./proxy-config');
 const app = express();
 const PORT = process.env.PORT || 5280;
 const VERSION = process.env.APP_VERSION || require('../package.json').version;
+// 图片显示开关：
+//   true/1  = 始终隐藏海报图片
+//   false/0 = 始终显示海报图片
+//   不设置  = 开发环境（NODE_ENV 非 production）隐藏，生产环境显示
+const HIDE_IMAGES = (() => {
+  const raw = String(process.env.HIDE_IMAGES || '').trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(raw)) return true;
+  if (['0', 'false', 'no', 'off'].includes(raw)) return false;
+  return process.env.NODE_ENV !== 'production';
+})();
 
 let proxyAxios; // will be initialized in startServer
 
@@ -220,7 +230,8 @@ app.get('/api/network/info', (req, res) => {
     data: {
       localUrl: `http://localhost:${PORT}`,
       networkUrl: `http://${localIP}:${PORT}`,
-      version: VERSION
+      version: VERSION,
+      hideImages: HIDE_IMAGES
     }
   });
 });

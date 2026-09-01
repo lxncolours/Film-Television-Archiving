@@ -5,7 +5,6 @@ const cache = require('../redis');
 const sortConfig = require('../config/sortConfig');
 const proxyConfig = require('../proxy-config');
 const logger = require('../utils/logger');
-const posterStore = require('../utils/posterStore');
 // archiver v8：导出类而非工厂函数
 const { ZipArchive } = require('archiver');
 
@@ -52,6 +51,26 @@ function normalizeDateTime(dt) {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+function posterExtension(mime) {
+  const extensions = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/gif': 'gif'
+  };
+  return extensions[String(mime || '').toLowerCase()] || 'jpg';
+}
+
+function decodePosterData(value) {
+  if (!value) return null;
+  if (Buffer.isBuffer(value)) return value.length <= 5 * 1024 * 1024 ? value : null;
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  if (!normalized) return null;
+  const buffer = Buffer.from(normalized, 'base64');
+  return buffer.length > 0 && buffer.length <= 5 * 1024 * 1024 ? buffer : null;
+}
+
 router.get('/', async (req, res) => {
   try {
     const { search, type, year, platform, country, category, tag, sort = 'dateDesc', page = 1, per_page = 20 } = req.query;
@@ -91,7 +110,7 @@ router.get('/', async (req, res) => {
 
     const offset = (pageNum - 1) * perPageNum;
     
-    let sql = 'SELECT id, title, altTitle, year, country, type, category, tags, platform, rating, poster, poster_mime, poster_file, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt, (poster_file IS NOT NULL OR (poster_data IS NOT NULL AND poster_data != \'\')) as has_poster_data FROM movies WHERE 1=1';
+    let sql = 'SELECT id, title, altTitle, year, country, type, category, tags, platform, rating, poster, poster_mime, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt, (poster_data IS NOT NULL AND poster_data != \'\') as has_poster_data FROM movies WHERE 1=1';
     let countSql = 'SELECT COUNT(*) as total FROM movies WHERE 1=1';
     const params = [];
     const countParams = [];
@@ -388,48 +407,51 @@ router.get('/export', async (req, res) => {
 
     logger.info(`[Movies] GET /export format=${format}`);
 
-    // 完整备份（ZIP）：metadata.json + posters/ 海报文件，archiver 流式输出（内存占用恒定）
+    // 完整备份（ZIP）：海报只作为备份包内容存在，导入时仍写回 MySQL BLOB。
     if (format === 'zip') {
       const [rows] = await pool.query(
-        `SELECT id, title, altTitle, year, country, type, category, tags, platform, rating, poster, poster_file, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt FROM movies ORDER BY id ASC`
+        `SELECT id, title, altTitle, year, country, type, category, tags, platform, rating, poster, poster_mime, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt,
+          (poster_data IS NOT NULL AND poster_data != '') AS has_poster_data
+         FROM movies ORDER BY id ASC`
       );
       const movies = rows.map(row => {
-        if (row.tags && typeof row.tags === 'string') {
-          try { row.tags = JSON.parse(row.tags); } catch { row.tags = []; }
+        const movie = { ...row };
+        if (movie.tags && typeof movie.tags === 'string') {
+          try { movie.tags = JSON.parse(movie.tags); } catch { movie.tags = []; }
         }
-        row.rating = Number(row.rating);
-        row.year = Number(row.year);
-        return row;
+        movie.rating = Number(movie.rating);
+        movie.year = Number(movie.year);
+        movie.has_poster_data = movie.has_poster_data === 1 || movie.has_poster_data === true;
+        return movie;
       });
 
       const stamp = new Date().toISOString().slice(0, 10);
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader('Content-Disposition', `attachment; filename="movie-archive-${stamp}.zip"`);
+      res.flushHeaders();
 
-      const archive = new ZipArchive({ zlib: { level: 6 } });
+      const archive = new ZipArchive({ store: true });
       archive.on('error', err => { logger.error(`[Movies] export zip error: ${err.message}`); res.end(); });
       archive.pipe(res);
 
-      archive.append(Buffer.from(JSON.stringify({ success: true, version: 2, exportedAt: new Date().toISOString(), total: movies.length, data: movies }, null, 2), 'utf8'), { name: 'metadata.json' });
-
-      // 只打包被引用的海报文件（按 poster_file 名去重）
-      const added = new Set();
-      for (const m of movies) {
-        if (!m.poster_file || added.has(m.poster_file)) continue;
-        const buf = posterStore.readPoster(m.poster_file);
-        if (buf) {
-          archive.append(buf, { name: `posters/${m.poster_file}` });
-          added.add(m.poster_file);
-        }
+      archive.append(Buffer.from(JSON.stringify({ success: true, version: 3, posterStorage: 'mysql-blob', exportedAt: new Date().toISOString(), total: movies.length, data: movies }, null, 2), 'utf8'), { name: 'metadata.json' });
+      let posterCount = 0;
+      for (const movie of movies) {
+        if (!movie.has_poster_data) continue;
+        const [posterRows] = await pool.query('SELECT poster_data FROM movies WHERE id = ?', [movie.id]);
+        if (!posterRows[0]?.poster_data) continue;
+        const archiveName = `posters/${movie.id}.${posterExtension(movie.poster_mime)}`;
+        archive.append(Buffer.from(posterRows[0].poster_data), { name: archiveName, store: true });
+        posterCount++;
       }
       await archive.finalize();
-      logger.info(`[Movies] GET /export zip count=${movies.length} posters=${added.size}`);
+      logger.info(`[Movies] GET /export zip count=${movies.length} posters=${posterCount}`);
       return;
     }
 
-    // 元数据导出（JSON/CSV）：不含海报二进制，量大也快
+    // JSON 直接携带海报 base64，保证备份跨环境可恢复；CSV 仅导出文本字段。
     const [rows] = await pool.query(
-      `SELECT title, altTitle, year, country, type, category, tags, platform, rating, poster, poster_file, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt FROM movies ORDER BY id ASC`
+      `SELECT title, altTitle, year, country, type, category, tags, platform, rating, poster, poster_data, poster_mime, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt FROM movies ORDER BY id ASC`
     );
 
     logger.info(`[Movies] GET /export format=${format} count=${rows.length}`);
@@ -467,6 +489,9 @@ router.get('/export', async (req, res) => {
 
     const movies = rows.map(row => {
       const movie = { ...row };
+      if (movie.poster_data) {
+        movie.poster_data = Buffer.from(movie.poster_data).toString('base64');
+      }
       if (movie.tags && typeof movie.tags === 'string') {
         try { movie.tags = JSON.parse(movie.tags); } catch { movie.tags = []; }
       }
@@ -477,10 +502,10 @@ router.get('/export', async (req, res) => {
 
     res.json({
       success: true,
-      version: 2,
+      version: 3,
+      posterStorage: 'mysql-blob',
       exportedAt: new Date().toISOString(),
       total: movies.length,
-      postersHint: '海报文件不在本 JSON 中；需要含海报的完整备份请在导出菜单选择 ZIP 格式',
       data: movies
     });
   } catch (err) {
@@ -556,19 +581,15 @@ router.put('/:id', async (req, res) => {
 
     logger.info(`[Movies] PUT /${req.params.id} update title="${title}" type=${type} platform=${platform} year=${year} country=${country} category=${category}`);
 
-    const [currentRows] = await pool.query('SELECT poster, poster_data, poster_file, tags FROM movies WHERE id = ?', [req.params.id]);
+    const [currentRows] = await pool.query('SELECT poster, poster_data, tags FROM movies WHERE id = ?', [req.params.id]);
     const currentPoster = currentRows[0]?.poster || '';
-    const hadPosterData = !!(currentRows[0]?.poster_file || currentRows[0]?.poster_data);
+    const hadPosterData = !!currentRows[0]?.poster_data;
 
     let posterDataSql = '';
     let posterChanged = false;
     if (poster && poster !== currentPoster) {
-      posterDataSql = ', poster_data = NULL, poster_mime = NULL, poster_file = NULL';
+      posterDataSql = ', poster_data = NULL, poster_mime = NULL';
       posterChanged = true;
-      // 更换海报后旧海报文件若无其他引用则删除
-      if (currentRows[0]?.poster_file) {
-        await posterStore.removePosterIfUnshared(pool, currentRows[0].poster_file);
-      }
     }
 
     await ensureCountryExists(country);
@@ -615,12 +636,7 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     logger.info(`[Movies] DELETE /${req.params.id} delete`);
-    const [rows] = await pool.query('SELECT poster_file FROM movies WHERE id = ?', [req.params.id]);
     await pool.query('DELETE FROM movies WHERE id = ?', [req.params.id]);
-    // 海报文件按 hash 共享：仅当无其他记录引用时删除
-    if (rows[0]?.poster_file) {
-      await posterStore.removePosterIfUnshared(pool, rows[0].poster_file);
-    }
     await cache.flushMovies();
     res.json({ success: true, message: '删除成功' });
   } catch (err) {
@@ -643,11 +659,11 @@ router.post('/fetch-poster/:id', async (req, res) => {
   try {
     const { id } = req.params;
     logger.info(`[Movies] POST /fetch-poster/${id}`);
-    const [rows] = await pool.query('SELECT id, poster, poster_file, poster_data, title, altTitle, tmdbUrl, type FROM movies WHERE id = ?', [id]);
+    const [rows] = await pool.query('SELECT id, poster, poster_data, title, altTitle, tmdbUrl, type FROM movies WHERE id = ?', [id]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: '电影不存在' });
 
     const movie = rows[0];
-    if (movie.poster_file || movie.poster_data) return res.json({ success: true, message: '已有海报' });
+    if (movie.poster_data) return res.json({ success: true, message: '已有海报' });
 
     let posterUrl = null;
     try {
@@ -662,11 +678,9 @@ router.post('/fetch-poster/:id', async (req, res) => {
     if (posterUrl) {
       const image = await downloadAndStorePoster(posterUrl);
       if (image) {
-        // 海报落本地文件系统，DB 只存文件名
-        const fileName = posterStore.savePoster(image.data, image.mime);
         await pool.query(
-          'UPDATE movies SET poster = ?, poster_file = ?, poster_data = NULL, poster_mime = NULL WHERE id = ?',
-          [posterUrl, fileName, id]
+          'UPDATE movies SET poster = ?, poster_data = ?, poster_mime = ? WHERE id = ?',
+          [posterUrl, image.data, image.mime, id]
         );
         await cache.flushMovies();
         res.json({ success: true, message: '海报获取成功' });
@@ -685,26 +699,10 @@ router.post('/fetch-poster/:id', async (req, res) => {
 
 router.get('/poster/:id/image', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT poster_file, poster_data, poster_mime FROM movies WHERE id = ?', [req.params.id]);
+    const [rows] = await pool.query('SELECT poster_data, poster_mime FROM movies WHERE id = ?', [req.params.id]);
     if (rows.length === 0) return res.status(404).send('Poster not found');
     const row = rows[0];
 
-    // 优先：本地文件系统（文件名含内容 hash，可长期强缓存）
-    if (row.poster_file && posterStore.isValidName(row.poster_file)) {
-      const buf = posterStore.readPoster(row.poster_file);
-      if (buf) {
-        const etag = `"${row.poster_file}"`; // hash.ext，内容变化名字即变
-        if (req.headers['if-none-match'] === etag) {
-          return res.status(304).set('ETag', etag).end();
-        }
-        res.set('Content-Type', posterStore.mimeOf(row.poster_file));
-        res.set('ETag', etag);
-        res.set('Cache-Control', 'public, max-age=31536000, immutable');
-        return res.send(buf);
-      }
-    }
-
-    // 兼容：未迁移的旧 BLOB 数据（migrate-posters.js 跑过后即不存在）
     if (row.poster_data) {
       res.set('Content-Type', row.poster_mime || 'image/jpeg');
       res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -726,38 +724,7 @@ router.post('/import', async (req, res) => {
       return res.status(400).json({ success: false, message: '请提供有效的导入数据' });
     }
 
-    // 预处理：旧备份（v1）里的 poster_data base64 → 落盘为海报文件，记录 poster_file 引用
-    const fs = require('fs');
-    const path = require('path');
-    const toWrite = [];
-    for (const movie of movies) {
-      if (movie.poster_data && typeof movie.poster_data === 'string') {
-        const buf = Buffer.from(movie.poster_data, 'base64');
-        if (buf.length > 0 && buf.length <= 5 * 1024 * 1024) {
-          const fileName = posterStore.savePoster(buf, movie.poster_mime);
-          if (fileName) {
-            movie.poster_file = fileName;
-            toWrite.push([fileName, buf]);
-          }
-        }
-        delete movie.poster_data; // 已转存，不再进任何 SQL
-      }
-    }
-
-    // 元数据 + poster_file 引用批量入库
     const resp = await importMoviesInternal(movies, mode);
-
-    // 事务已提交：补写尚未落盘的海报文件（savePoster 幂等，可能已写入）
-    posterStore.ensureDir();
-    for (const [fileName, buf] of toWrite) {
-      try {
-        const p = path.join(posterStore.posterDir(), fileName);
-        if (!fs.existsSync(p)) fs.writeFileSync(p, buf);
-      } catch (e) {
-        logger.warn(`[Movies] POST /import poster write failed for ${fileName}: ${e.message}`);
-      }
-    }
-
     res.json(resp);
   } catch (err) {
     logger.error(`[Movies] POST /import error: ${err.message}`);
@@ -797,30 +764,35 @@ router.post('/import-zip', express.raw({ type: 'application/zip', limit: '500mb'
     }
     logger.info(`[Movies] POST /import-zip entry count=${movies.length} mode=${mode}`);
 
-    // 1) 解出海报文件到 data/posters/（本地 IO，快）
-    let postersExtracted = 0;
-    const posterNames = new Set();
-    for (const entry of zip.getEntries()) {
-      const name = entry.entryName;
-      if (name.startsWith('posters/') && !entry.isDirectory) {
-        const fileName = name.slice('posters/'.length);
-        if (!posterStore.isValidName(fileName)) continue;
-        posterStore.ensureDir();
-        const fs = require('fs');
-        const p = require('path').join(posterStore.posterDir(), fileName);
-        if (!fs.existsSync(p)) {
-          fs.writeFileSync(p, entry.getData());
-        }
-        posterNames.add(fileName);
-        postersExtracted++;
+    // ZIP 中的海报是备份载荷，不是数据库文件地址；读取后转成 BLOB 导入。
+    let postersLoaded = 0;
+    for (const movie of movies) {
+      const archiveName = movie.has_poster_data && movie.id != null
+        ? `posters/${movie.id}.${posterExtension(movie.poster_mime)}`
+        : (movie.poster_archive_file || (movie.poster_file ? `posters/${movie.poster_file}` : null));
+      delete movie.has_poster_data;
+      delete movie.poster_archive_file;
+      delete movie.poster_file;
+      if (!archiveName) continue;
+      if (!/^posters\/[A-Za-z0-9._-]+$/.test(archiveName)) {
+        return res.status(400).json({ success: false, message: `ZIP 中包含无效海报路径: ${archiveName}` });
       }
+      const entry = zip.getEntry(archiveName);
+      if (!entry || entry.isDirectory) {
+        return res.status(400).json({ success: false, message: `ZIP 中缺少海报文件: ${archiveName}` });
+      }
+      const data = entry.getData();
+      if (data.length === 0 || data.length > 5 * 1024 * 1024) {
+        return res.status(400).json({ success: false, message: `ZIP 中海报大小无效: ${archiveName}` });
+      }
+      movie.poster_data = data.toString('base64');
+      postersLoaded++;
     }
 
-    // 2) 元数据走统一的导入核心逻辑（poster_file 引用直接随 INSERT 入库）
     const resp = await importMoviesInternal(movies, mode);
     resp.data = resp.data || {};
-    resp.data.postersExtracted = postersExtracted;
-    logger.info(`[Movies] POST /import-zip done posters=${postersExtracted}`);
+    resp.data.postersLoaded = postersLoaded;
+    logger.info(`[Movies] POST /import-zip done posters=${postersLoaded}`);
     res.json(resp);
   } catch (err) {
     logger.error(`[Movies] POST /import-zip error: ${err.message}`);
@@ -837,8 +809,6 @@ async function importMoviesInternal(movies, mode) {
     let imported = 0;
     let skipped = 0;
     let posterCount = 0;
-    const BATCH_SIZE = 50;
-    let batch = [];
     const countrySet = new Set();
 
     for (const movie of movies) {
@@ -874,19 +844,21 @@ async function importMoviesInternal(movies, mode) {
         tagsJson = Array.isArray(movie.tags) ? JSON.stringify(movie.tags) : String(movie.tags);
       }
 
-      let posterFile = null;
-      if (posterStore.isValidName(movie.poster_file)) {
-        posterFile = movie.poster_file;
-        posterCount++;
-      }
+      const posterData = decodePosterData(movie.poster_data);
+      if (posterData) posterCount++;
 
-      batch.push([
+      await conn.query(
+        `INSERT INTO movies
+          (title, altTitle, year, country, type, category, tags, platform, rating, poster, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt, poster_data, poster_mime)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
         validTitle, validAltTitle, validYear, validCountry, validType, validCategory, tagsJson,
         validPlatform, validRating, validPoster, validDoubanUrl, validTmdbUrl, archiveDate, validNotes,
         movie.createdAt ? normalizeDateTime(movie.createdAt) : new Date(),
         movie.updatedAt ? normalizeDateTime(movie.updatedAt) : new Date(),
-        posterFile
-      ]);
+        posterData, posterData ? String(movie.poster_mime || 'image/jpeg').slice(0, 100) : null
+        ]
+      );
 
       if (validCountry) {
         validCountry.split(/[\/,，、]+/).map(s => s.trim()).filter(Boolean).forEach(c => countrySet.add(c));
@@ -894,20 +866,6 @@ async function importMoviesInternal(movies, mode) {
 
       imported++;
 
-      if (batch.length >= BATCH_SIZE) {
-        await conn.query(
-          'INSERT INTO movies (title, altTitle, year, country, type, category, tags, platform, rating, poster, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt, poster_file) VALUES ?',
-          [batch]
-        );
-        batch = [];
-      }
-    }
-
-    if (batch.length > 0) {
-      await conn.query(
-        'INSERT INTO movies (title, altTitle, year, country, type, category, tags, platform, rating, poster, doubanUrl, tmdbUrl, archiveDate, notes, createdAt, updatedAt, poster_file) VALUES ?',
-        [batch]
-      );
     }
 
     for (const name of countrySet) {

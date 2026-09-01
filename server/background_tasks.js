@@ -20,7 +20,7 @@ function sleep(ms) {
 
 async function fetchOnePoster() {
   const [rows] = await dbPool.query(
-    "SELECT id, title, altTitle, tmdbUrl, type FROM movies WHERE (poster_data IS NULL OR poster_data = '') AND (poster_file IS NULL OR poster_file = '') AND (poster IS NULL OR poster = '' OR poster = '_not_found_') ORDER BY tmdbUrl DESC, id ASC LIMIT 1"
+    "SELECT id, title, altTitle, tmdbUrl, type FROM movies WHERE (poster_data IS NULL OR poster_data = '') AND (poster IS NULL OR poster = '' OR poster = '_not_found_') ORDER BY tmdbUrl DESC, id ASC LIMIT 1"
   );
 
   if (rows.length === 0) {
@@ -71,14 +71,11 @@ async function fetchOnePoster() {
     }
 
     if (imageData) {
-      // 海报落本地文件系统（data/posters/），DB 只存文件名
-      const posterStore = require('./utils/posterStore');
-      const fileName = posterStore.savePoster(imageData, imageMime);
       await dbPool.query(
-        'UPDATE movies SET poster = ?, poster_file = ?, poster_data = NULL, poster_mime = NULL WHERE id = ?',
-        [posterUrl, fileName, movie.id]
+        'UPDATE movies SET poster = ?, poster_data = ?, poster_mime = ? WHERE id = ?',
+        [posterUrl, imageData, imageMime, movie.id]
       );
-      logger.info(`[Background] ${movie.title} 海报已保存（文件: ${fileName}）`);
+      logger.info(`[Background] ${movie.title} 海报已保存到数据库 BLOB`);
     } else {
       await dbPool.query('UPDATE movies SET poster = ? WHERE id = ?', [posterUrl, movie.id]);
       logger.info(`[Background] ${movie.title} 海报URL已保存`);

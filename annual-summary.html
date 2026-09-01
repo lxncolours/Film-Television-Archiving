@@ -369,6 +369,7 @@
         const API_BASE = `${window.location.origin}/api`;
         let currentYear = null;
         let availableYears = [];
+        let hideImages = false;
 
         // XSS prevention: escape all user-controlled data before inserting into innerHTML
         function escapeHtml(str) {
@@ -390,6 +391,7 @@
 
         function proxyImg(movie) {
             if (!movie) return '';
+            if (hideImages) return '';
             if (movie.has_poster_data) return `/api/movies/poster/${movie.id}/image`;
             if (!movie.poster || movie.poster === '_not_found_') return '';
             // 外链海报（TMDB / 豆瓣等）统一经后端代理拉取，避免浏览器直连外网
@@ -408,7 +410,13 @@
             return { success: false };
         }
 
+        async function loadAppConfig() {
+            const d = await apiGet(`${API_BASE}/network/info`);
+            if (d.success && d.data) hideImages = !!d.data.hideImages;
+        }
+
         async function loadYears() {
+            await loadAppConfig();
             const d = await apiGet(`${API_BASE}/movies/stats`);
             if (d.success && d.data && d.data.years) {
                 availableYears = d.data.years.map(y => y.year);
@@ -528,7 +536,7 @@
                 return `
                 <div class="movie-card" style="animation-delay:${i*0.02}s">
                     <div class="poster-wrap">
-                        ${(movie.has_poster_data || movie.poster) ? `
+                        ${(!hideImages && (movie.has_poster_data || movie.poster)) ? `
                             <img src="${proxyImg(movie)}" alt="${safeTitle}" loading="lazy"
                                 onerror="this.outerHTML=\`<div class='poster-placeholder'><span class='initial'>${safeInitial}</span></div>\`">
                         ` : `
